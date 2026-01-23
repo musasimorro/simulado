@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulado Completo Auditor Bauru 2017</title>
+    <style>
+        :root { --primary: #1a3a5a; --secondary: #f39c12; --accent: #27ae60; --text: #333; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
+        header { text-align: center; margin-bottom: 20px; color: var(--primary); width: 100%; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 15px; width: 100%; max-width: 1200px; }
+        .card { perspective: 1000px; min-height: 280px; cursor: pointer; }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+        .front, .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
+        .front { background: white; border-top: 6px solid var(--secondary); }
+        .back { background: var(--primary); color: white; transform: rotateY(180deg); border-top: 6px solid var(--accent); }
+        .q-num { font-weight: bold; color: var(--secondary); font-size: 0.9em; margin-bottom: 8px; }
+        .q-text { font-size: 0.95em; line-height: 1.4; flex-grow: 1; }
+        .options-list { font-size: 0.85em; color: #555; margin-top: 10px; border-top: 1px dashed #ddd; padding-top: 10px; }
+        .ans-header { color: var(--accent); font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+        .justification { font-size: 0.9em; line-height: 1.5; text-align: justify; }
+        .justification strong { color: var(--secondary); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Simulado Oficial 2017</h1>
+    <p>Auditor Fiscal Tributário - Bauru</p>
+</header>
+
+<div class="grid" id="simulado-grid"></div>
+
+<script>
+const questoes = [
+    {id:"01", q:"A decisão de primeira instância em processo administrativo tributário será proferida:", opt:"A) Órgão singular da SEF...\nB) Prefeito.\nC) Assessor...\nD) Auditor Fiscal (exceto o que atuou ou lavrou auto).", r:"D", j:"Fundamento: Princípio da Impessoalidade e Segregação de Funções. Quem fiscaliza ou autua não pode ser o julgador do próprio ato para garantir a imparcialidade."},
+    {id:"02", q:"A autoridade julgadora de primeira instância:", opt:"A) Não pode converter em diligência.\nB) Vincula-se apenas às alegações.\nC) Não fica adstrita às alegações, julgando por convicção.\nD) Não pode requerer novas provas.", r:"C", j:"Justificativa: No processo administrativo tributário, vigora o princípio da Verdade Material, permitindo que o julgador busque a realidade dos fatos além do que foi alegado pelas partes."},
+    {id:"03", q:"Sobre retenção de ISS pelo tomador, é INCORRETO:", opt:"A) Extensiva a associações.\nB) Não ocorre se prestador for imune/isento.\nC) Ocorre ainda que prestador seja PF com alíquota específica.\nD) Não haverá se imposto for devido a outro Município.", r:"C", j:"Justificativa: Profissionais autônomos (Pessoas Físicas) que pagam ISS fixo anual não sofrem retenção na fonte, pois o imposto já é recolhido pelo regime especial de alíquota fixa."},
+    {id:"04", q:"Descontos de ISS para empresas que contratam deficientes em Bauru:", opt:"A) 3% por deficiente até 30%.\nB) 5% por deficiente até 30%.\nC) 3% sem limitação.\nD) 5% limitado a 5 deficientes.", r:"B", j:"Base Legal: Código Tributário Municipal de Bauru. É um incentivo fiscal de 5% por contratado, com teto de 30% do tributo."},
+    {id:"05", q:"Definição de atividade preponderante para fins de ITBI:", opt:"A) Totalidade do patrimônio.\nB) >50% receita em 3 anos subsequentes.\nC) >50% receita em 2 anos antes e 2 depois.\nD) >50% receita em 2 anos subsequentes.", r:"C", j:"Fundamento: Art. 37, §1º e §2º do CTN. A análise da preponderância imobiliária considera o biênio anterior e o posterior à transação."},
+    {id:"06", q:"Modalidade de extinção do crédito tributário, EXCETO:", opt:"A) Pagamento.\nB) Moratória.\nC) Transação.\nD) Compensação.", r:"B", j:"Justificativa: A Moratória é causa de SUSPENSÃO da exigibilidade do crédito (Art. 151, I do CTN), não de extinção."},
+    {id:"07", q:"Sobre obrigação tributária, assinale a INCORRETA:", opt:"A) Acessória vira principal se descumprida.\nB) Principal surge com fato gerador.\nC) Pagamento dispensa obrigação acessória.\nD) Acessória decorre da legislação.", r:"C", j:"Justificativa: O cumprimento da obrigação principal (pagar) não dispensa a acessória (ex: emitir nota ou guardar livros), que serve à fiscalização."},
+    {id:"08", q:"Na ausência de lei, a ordem sucessiva de aplicação é:", opt:"A) Civil, Analogia, Público, Equidade.\nB) Analogia, P.G. Tributário, P.G. Público, Equidade.\nC) Analogia, Público, Const, Equidade.\nD) Equidade, Tributário, Analogia, Privado.", r:"B", j:"Fundamento: Art. 108 do CTN. Ordem rigorosa: Analogia -> P.G. Direito Tributário -> P.G. Direito Público -> Equidade."},
+    {id:"09", q:"Proibição de cobrança sobre fatos passados decorre da:", opt:"A) Anterioridade.\nB) Legalidade.\nC) Capacidade.\nD) Irretroatividade.", r:"D", j:"Justificativa: Art. 150, III, 'a' da CF. Impede a cobrança de tributos sobre fatos geradores ocorridos antes da lei que os instituiu ou aumentou."},
+    {id:"10", q:"Compete exclusivamente aos Municípios o imposto sobre:", opt:"A) Transmissão Inter Vivos (ITBI).\nB) Transporte intermunicipal (ICMS).\nC) Propriedade Rural (ITR).\nD) Causa Mortis (ITCMD).", r:"A", j:"Fundamento: Art. 156, II da Constituição Federal. ITBI é o imposto municipal sobre bens imóveis por ato oneroso."},
+    {id:"11", q:"Tributos abrangidos pelo Simples Nacional:", opt:"A) I, II, III, IV, V, VIII.\nB) I, III, IV, V, VI, VIII.\nC) I, II, III, IV, V, VI, VIII.\nD) I, II, III, V, VI, VII, VIII.", r:"D", j:"Justificativa: O Simples abrange IRPJ, CSLL, PIS, COFINS, IPI, CPP, ICMS e ISS. O PIS-Importação (IV) costuma ser pago à parte."},
+    {id:"12", q:"Sobre pintura predial no Simples Nacional, assinale a INCORRETA:", opt:"A) Cessão de mão de obra é vedada.\nB) Contratante deve reter 11% mesmo sem cessão.\nC) Contratante NÃO deve reter 11% sem cessão.\nD) Pintura em obra de engenharia segue a obra.", r:"B", j:"Justificativa: A retenção de 11% (INSS) no Simples só ocorre em casos específicos de cessão de mão de obra ou empreitada nos anexos corretos."},
+    {id:"13", q:"Pode optar pelo Simples Nacional a pessoa jurídica:", opt:"A) Cooperativa.\nB) Com sócio PJ.\nC) Que participe de outra PJ.\nD) Nenhuma das anteriores.", r:"D", j:"Justificativa: O Art. 3º da LC 123/2006 veda o Simples para empresas com sócio PJ ou que participem do capital de outras PJs (salvo raras exceções)."},
+    {id:"14", q:"Tributos contidos na LC 123/2006 (DAS):", opt:"A) ITBI, ITCMD, CSLL.\nB) IPVA, ICMS, IRPJ.\nC) ISS, ICMS, CSLL.\nD) ISS, IPVA, IRPJ.", r:"C", j:"Justificativa: O DAS unifica ISS (municipal), ICMS (estadual) e tributos federais como CSLL, IRPJ, PIS e COFINS."},
+    {id:"15", q:"Sobre o Simples Nacional, estão corretas:", opt:"A) I apenas.\nB) I e III apenas.\nC) II apenas.\nD) II e III apenas.", r:"A", j:"Justificativa: I está correta (exclusão gera novo regime). II está errada pois débito suspenso não impede. III está errada pois pró-labore NÃO é isento (tem IRRF)."},
+    {id:"16", q:"Objetivo do Código da Cidadania Fiscal de Bauru:", opt:"A) Direitos, garantias e obrigações da Adm. e Contribuinte.\nB) Apenas Adm e direitos do contribuinte.\nC) Apenas Adm e deveres do contribuinte.\nD) Apenas obrigações do contribuinte.", r:"A", j:"Justificativa: O Código (Lei 6858/2016) visa equilibrar a relação, estabelecendo deveres e direitos para AMBAS as partes."},
+    {id:"17", q:"ISS pago por residente no exterior:", opt:"A) É exportação imune.\nB) É exportação não imune.\nC) Por si não traduz exportação imune.\nD) É isento.", r:"C", j:"Justificativa: Para ser exportação imune, o resultado do serviço deve se verificar no exterior, não basta o pagamento vir de fora (LC 116/03)."},
+    {id:"18", q:"Substituição Tributária de ISS em Bauru:", opt:"A) Contratado recolhe.\nB) Contratante recolhe (exceto se prestador imune).\nC) Contratado recolhe (exceto se prestador imune).\nD) Contratante recolhe (mesmo se prestador imune).", r:"D", j:"Justificativa: A responsabilidade do substituto (tomador) é independente da condição do prestador, visando garantir a arrecadação."},
+    {id:"19", q:"Composição do Conselho de Contribuintes de Bauru:", opt:"A) 7 membros (4 Exec / 2 Contrib / 1 MP).\nB) 7 membros (4 Exec / 3 Contrib).\nC) 5 membros (3 Exec / 2 Contrib).\nD) 5 membros (3 Exec / 1 Contrib / 1 MP).", r:"C", j:"Justificativa: Conforme legislação municipal, o conselho é paritário/proporcional com 5 membros, sendo 3 do Executivo (2 auditores obrigatoriamente)."},
+    {id:"20", q:"Parcelamento de Dívida Ativa em Bauru:", opt:"A) Tributários ou não, mesmo ajuizados.\nB) Tributários apenas, não ajuizados.\nC) Federais e Estaduais inclusos.\nD) Estaduais inclusos.", r:"A", j:"Justificativa: A lei municipal permite o parcelamento de débitos inscritos em dívida ativa, independentemente da fase de cobrança (administrativa ou judicial)."},
+    {id:"21", q:"Art. 5º da CF - Assinale a CORRETA:", opt:"A) Casa inviolável dia e noite por judicial.\nB) Infos particulares apenas.\nC) Ninguém privado de direitos por crença...\nD) Petição após taxas.", r:"C", j:"Justificativa: A casa só entra com judicial DURANTE O DIA. Petição é GRATUITA. Infos são de interesse geral/coletivo também."},
+    {id:"22", q:"Organização Político-Administrativa - INCORRETA:", opt:"A) Legislar concorrente sobre tributário.\nB) Municípios aplicam rendas sem balancetes.\nC) DF pode ser dividido em Municípios.\nD) Estados têm competências remanescentes.", r:"C", j:"Justificativa: É vedada a divisão do Distrito Federal em Municípios (Art. 32 da CF)."},
+    {id:"23", q:"Sobre Direito Empresarial - INCORRETA:", opt:"A) EIRELI com capital 100x mínimos.\nB) Sociedade: contribuir com bens/serviços.\nC) Intelectual não é empresário em regra.\nD) Junta não registra sócio incapaz.", r:"D", j:"Justificativa: O incapaz PODE participar de sociedade empresária, desde que representado/assistido e o capital esteja integralizado (Art. 974 CC)."},
+    {id:"24", q:"São incapazes RELATIVAMENTE:", opt:"A) Menores de 16.\nB) Índios.\nC) Ébrios habituais.\nD) Impedidos de exprimir vontade.", r:"C", j:"Justificativa: Art. 4º do Código Civil. Menores de 16 são ABSOLUTAMENTE incapazes. Ébrios e viciados são RELATIVAMENTE."},
+    {id:"25", q:"Crimes contra a Adm Pública - CORRETA:", opt:"A) Corrupção passiva = Exigir.\nB) Concussão = Solicitar.\nC) Prevaricação = Apropriar.\nD) Condescendência Criminosa = Indulgência.", r:"D", j:"Justificativa: Exigir é Concussão. Solicitar é Corrupção Passiva. Apropriar é Peculato. Retardar ato por interesse é Prevaricação."},
+    {id:"26", q:"Crimes contra ordem tributária - EXCEÇÃO:", opt:"A) Extraviar livro.\nB) Exigir vantagem para não lançar.\nC) Suprimir tributo.\nD) Patrocinar interesse privado.", r:"C", j:"Justificativa: Suprimir tributo (C) é crime praticado por PARTICULAR (Lei 8137/90, Art 1º). Os outros são crimes funcionais (Art 3º)."},
+    {id:"27", q:"Abuso de Autoridade (Lei 4898/65) - INCORRETA:", opt:"A) Atentado à liberdade...\nB) Sanção apenas administrativa.\nC) Autoridade = quem exerce função pública.\nD) Vítima pode promover civil e penal.", r:"B", j:"Justificativa: O abuso de autoridade sujeita o autor a sanções administrativas, CIVIS e PENAIS (detenção, não reclusão como diz a lei antiga)."},
+    {id:"28", q:"Improbidade Administrativa - CORRETA (Princípios):", opt:"A) Suspensão 8-10 anos (Erário).\nB) Suspensão 5-8 anos (Enriquecimento).\nC) Suspensão 3-5 anos (Princípios).\nD) Multa 6x (Benefício indevido).", r:"C", j:"Justificativa: Atentar contra os princípios da administração gera suspensão dos direitos políticos de 3 a 5 anos (Lei 8429/92 antes da reforma)."},
+    {id:"29", q:"Princípios do Art 37 CF - INCORRETA:", opt:"A) Legalidade = pode o que não é proibido.\nB) Moralidade = ética e justiça.\nC) Publicidade = transparência.\nD) Eficiência = rendimento e resultados.", r:"A", j:"Justificativa: Na Adm Pública, legalidade significa que o administrador SÓ pode fazer o que a lei AUTORIZA (Diferente do particular)."},
+    {id:"30", q:"Validade do Ato Administrativo - EXCEÇÃO:", opt:"A) Autoridade competente.\nB) Exposição de direito.\nC) Sempre interesse público.\nD) Não cause prejuízo a particulares.", r:"D", j:"Justificativa: Atos administrativos podem sim causar prejuízos a particulares (ex: interdição de fábrica ou multa) desde que sejam legais."},
+    {id:"31", q:"Características qualitativas FUNDAMENTAIS (CPC 00):", opt:"A) Relevância e Tempestividade.\nB) Relevância e Representação Fidedigna.\nC) Relevância e Materialidade.\nD) Tempestividade e Comparabilidade.", r:"B", j:"Justificativa: De acordo com a NBC TG Estrutura Conceitual, as fundamentais são Relevância e Representação Fidedigna. As outras são de melhoria."},
+    {id:"32", q:"Responsabilidade do auditor (Fraude):", opt:"A) Identificar riscos e responder adequadamente.\nB) Não indagar adm sobre riscos.\nC) Avaliar fatores só em caso real.\nD) Parar investigação se inconsistente.", r:"A", j:"Justificativa: NBC TA 240. O auditor deve manter ceticismo profissional e avaliar riscos de fraude durante todo o processo."},
+    {id:"33", q:"Sobre Ativo Imobilizado (NBC TG 27):", opt:"A) É item intangível.\nB) Custo superior a R$ 2.000.\nC) Honorários não são custos.\nD) Custo menos depreciação acumulada.", r:"D", j:"Justificativa: Imobilizado é TANGÍVEL. Honorários profissionais para instalação SÃO custos. O valor contábil é Custo - Depreciação - Provisão p/ Perdas."},
+    {id:"34", q:"Calcular Lucro Bruto com os dados fornecidos:", opt:"A) 227.200\nB) 223.400\nC) 235.200\nD) 241.400.", r:"B", j:"Cálculo: (Receita Vendas 440k + Serviços 350k) - Devoluções 20k - ISS s/ Vendas 7k - ICMS s/ Vendas 21.6k - CMV 130k - CSP 387.6k (estimado)."},
+    {id:"35", q:"Lançamento contábil de conclusão de serviço adiantado:", opt:"A) D: Bancos / C: Adiantamento.\nB) D: Adiantamento / C: Receita / C: Bancos.\nC) D: Adiantamento / D: Bancos / C: Receita.\nD) D: Receita / C: Bancos.", r:"B", j:"Justificativa: Baixa-se o passivo (Adiantamento), reconhece a Receita pelo valor prestado e credita Bancos pela devolução do excesso."},
+    {id:"36", q:"Como se obtém a Taxa de Juros Real?", opt:"A) Expurgando inflação da nominal.\nB) Somando efetiva e inflação.\nC) Expurgando efetiva da nominal.\nD) Somando nominal e efetiva.", r:"A", j:"Fórmula de Fisher: (1 + r_nominal) = (1 + r_real) * (1 + inflação). Logo, a real é a nominal sem o efeito da inflação."},
+    {id:"37", q:"Amortização na 1ª parcela (Sistema Price):", opt:"A) 400,00.\nB) 768,95.\nC) 384,65.\nD) 784,65.", r:"C", j:"Cálculo: Juros = 20.000 * 2% = 400. Amortização = Parcela - Juros = 784,65 - 400,00 = 384,65."},
+    {id:"38", q:"Valor atualizado de 11.200 em 2 meses (Juros Compostos 3% am):", opt:"A) 11.652,48.\nB) 11.536,00.\nC) 11.872,00.\nD) 11.882,08.", r:"D", j:"Cálculo: 11.200 * (1,03)² = 11.200 * 1,0609 = 11.882,08."},
+    {id:"39", q:"Sobre equivalência de capitais:", opt:"A) Datas iguais / valores diferentes.\nB) Datas diferentes / valores diferentes.\nC) Datas diferentes / valores iguais na data ref.\nD) Datas iguais / valores reais.", r:"C", j:"Justificativa: Dois capitais são equivalentes quando, levados para a mesma data sob a mesma taxa, resultam no mesmo valor presente."},
+    {id:"40", q:"Sobre o desconto comercial 'por fora':", opt:"A) Incide no liberado / mais encargos.\nB) Incide no resgate / menos encargos.\nC) Incide no liberado / menos encargos.\nD) Incide no resgate / mais encargos.", r:"D", j:"Justificativa: O desconto comercial incide sobre o Valor Nominal (Resgate). Como a taxa é sobre um valor maior, o custo efetivo é maior que o nominal."},
+    {id:"41", q:"Efeito do termo 'até nas camadas mais altas' no texto:", opt:"A) Inclusão apenas.\nB) Surpresa do enunciador.\nC) Alegria.\nD) Desprezo.", r:"B", j:"Análise: O termo 'até' funciona como operador argumentativo de inclusão, sugerindo que a agitação chegou a lugares inesperados (surpresa)."},
+    {id:"42", q:"Classificação da conjunção 'MAS' no trecho:", opt:"A) Adversativa.\nB) Explicativa.\nC) Concessiva.\nD) Conformativa.", r:"A", j:"Justificativa: 'Mas' liga orações com ideia de oposição ou contraste (discurso bonito VS desconversou)."},
+    {id:"43", q:"Completar: ____ não tinha ânimo... saber o ____...", opt:"A) Por que - porque...\nB) Porque - porque...\nC) Porque - porquê - por que - por quê.\nD) Por que - porquê - porque - por quê.", r:"C", j:"Regra: Porque (Causal/Início) | o porquê (Substantivado) | por que (pelo qual/motivo) | por quê? (Fim de frase)."},
+    {id:"44", q:"Concordância verbal correta no SINGULAR:", opt:"A) Organizou-se novos grupos.\nB) É necessário bons valores.\nC) Deve existir releituras.\nD) Deverá ser observada a nova tendência.", r:"D", j:"Justificativa: O sujeito 'a nova tendência' é singular, logo o verbo concorda no singular. Nos outros casos o sujeito é plural."},
+    {id:"45", q:"Voz passiva sintética de 'A existência era revelada':", opt:"A) Revelava-se a existência...\nB) Revelou-se a existência...\nC) Revelar-se-ia...\nD) Revela-se...", r:"A", j:"Justificativa: Mantém o tempo (Pretérito Imperfeito do Indicativo: era -> revelava) + o pronome 'se'."},
+    {id:"46", q:"Fórmula Excel soma A1:A20, C23 e 235:", opt:"A) SOMASE...\nB) =SOMA(A1:A20;C23;235).\nC) =SOMASES...\nD) SOMAQUAD...", r:"B", j:"Justificativa: A função =SOMA() aceita intervalos (:), células (;) e valores constantes como argumentos."},
+    {id:"47", q:"Resultado de =INT(8,9) no Excel:", opt:"A) 72\nB) 9\nC) -1\nD) 8.", r:"D", j:"Justificativa: A função INT arredonda um número para baixo até o inteiro mais próximo. 8,9 vira 8."},
+    {id:"48", q:"Resultado de =ABS(-2) no Excel:", opt:"A) 2\nB) -2\nC) 0,2\nD) -0,2.", r:"A", j:"Justificativa: A função ABS retorna o valor absoluto de um número (o número sem sinal)."},
+    {id:"49", q:"Menu para adicionar favoritos no Internet Explorer:", opt:"A) Exibir\nB) Favoritos/Adicionar a Favoritos\nC) Ferramentas\nD) Editar.", r:"B", j:"Justificativa: No IE antigo, o gerenciamento de páginas favoritas ficava exclusivamente no menu Favoritos."},
+    {id:"50", q:"Passos para inserir tabela no Word 2003:", opt:"A) Exibir\nB) Inserir\nC) Tabela/Exibir\nD) Tabela/Inserir/Tabela.", r:"D", j:"Justificativa: Na interface de menus clássica do Word 2003, havia um menu específico chamado 'Tabela' para esta função."}
+];
+
+const grid = document.getElementById('simulado-grid');
+questoes.forEach(q => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+        <div class="card-inner">
+            <div class="front">
+                <div class="q-num">QUESTÃO ${q.id}</div>
+                <div class="q-text">${q.q}</div>
+                <div class="options-list"><pre style="white-space: pre-wrap; font-family: inherit; margin:0;">${q.opt}</pre></div>
+            </div>
+            <div class="back">
+                <div class="ans-header">RESPOSTA: ${q.r}</div>
+                <div class="justification">
+                    <strong>Comentário Técnico:</strong><br>
+                    ${q.j}
+                </div>
+            </div>
+        </div>
+    `;
+    card.onclick = () => card.classList.toggle('flipped');
+    grid.appendChild(card);
+});
+</script>
+
+</body>
+</html>
