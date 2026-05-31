@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR Hand Tracking Test</title>
+    <title>VR Hand Tracking - Galeria Local</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -22,25 +22,32 @@
             width: 100vw;
             height: 100vh;
         }
-        /* Vídeo original da câmera (escondido ou em background) */
         #webcam {
             position: absolute;
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Espelha para parecer um espelho */
+            transform: scaleX(-1);
             z-index: 1;
         }
-        /* Canvas onde desenhamos os pontos da mão */
+        /* Elemento que vai mostrar a sua foto da galeria atrás das suas mãos */
+        #background_media {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 2;
+            opacity: 0.7; /* Transparência para você ainda ver o mundo real ao fundo */
+            display: none;
+        }
         #output_canvas {
             position: absolute;
             width: 100%;
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
-            z-index: 2;
+            z-index: 3;
         }
-        /* Indicador de clique/gesto */
         #status {
             position: absolute;
             top: 20px;
@@ -50,9 +57,27 @@
             color: white;
             padding: 10px 20px;
             border-radius: 20px;
-            z-index: 3;
+            z-index: 4;
             font-weight: bold;
             pointer-events: none;
+        }
+        /* Botão para abrir o seletor de arquivos do celular */
+        #file_label {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            z-index: 5;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #file_input {
+            display: none;
         }
     </style>
 </head>
@@ -61,7 +86,11 @@
     <div id="container">
         <div id="status">Aguardando câmera...</div>
         <video id="webcam" autoplay playsinline></video>
+        <img id="background_media" alt="Sua Foto">
         <canvas id="output_canvas"></canvas>
+        
+        <label id="file_label" for="file_input">Selecionar da Galeria 📂</label>
+        <input type="file" id="file_input" accept="image/*">
     </div>
 
     <script>
@@ -69,8 +98,9 @@
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const statusDiv = document.getElementById('status');
+        const bgMedia = document.getElementById('background_media');
+        const fileInput = document.getElementById('file_input');
 
-        // Ajusta o tamanho do canvas para o tamanho da tela
         function resizeCanvas() {
             canvasElement.width = window.innerWidth;
             canvasElement.height = window.innerHeight;
@@ -78,38 +108,48 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Função para calcular a distância 3D entre dois pontos da mão
+        // Lógica para ler o arquivo selecionado do celular
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    bgMedia.src = event.target.result;
+                    bgMedia.style.display = 'block'; // Mostra a imagem na tela
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
         function getDistance(p1, p2) {
             return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
         }
 
-        // Resposta quando o MediaPipe encontra uma mão
         function onResults(results) {
-            // Limpa o canvas anterior
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             
-            // Desenha a imagem da câmera no fundo do canvas (Efeito Pass-through/Realidade Mista)
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            // Se não tiver imagem carregada na tela, desenha a câmera direto no canvas
+            if (bgMedia.style.display !== 'block') {
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            }
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 statusDiv.innerText = "Mão detectada!";
                 statusDiv.style.background = "rgba(0,0,0,0.7)";
 
                 for (const landmarks of results.multiHandLandmarks) {
-                    // Desenha os pontos e as linhas conectando os dedos
                     drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
                     drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 5});
 
-                    // Lógica de Gesto: Ponto 4 é a ponta do polegar, Ponto 8 é a ponta do indicador
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
-
                     const distance = getDistance(thumbTip, indexTip);
 
-                    // Se a distância for muito curta, detecta como "Clique/Pinça"
+                    // Se fizer o gesto de clique, dá um efeito visual na mídia
                     if (distance < 0.05) {
-                        statusDiv.innerText = "CLIQUE DETECTADO! 🫵";
+                        statusDiv.innerText = "Gesto Detectado! 🫵";
                         statusDiv.style.background = "#00FF00";
+                        bgMedia.style.borderColor = "#00FF00";
                     }
                 }
             } else {
@@ -117,13 +157,12 @@
             }
         }
 
-        // Configuração do modelo do MediaPipe
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
 
         hands.setOptions({
-            maxNumHands: 2,
+            maxNumHands: 1,
             modelComplexity: 1,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
@@ -131,14 +170,13 @@
 
         hands.onResults(onResults);
 
-        // Inicializa a câmera do dispositivo
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({image: videoElement});
             },
             width: 1280,
             height: 720,
-            facingMode: "environment" // "environment" foca na câmera traseira. Use "user" para a frontal.
+            facingMode: "environment"
         });
         
         camera.start().then(() => {
