@@ -5,18 +5,15 @@
 
 <meta charset="UTF-8">
 
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-<title>MR Spatial OS Fase 6</title>
+<title>MR Spatial OS</title>
 
 <link rel="stylesheet" href="style.css">
 
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
 </head>
@@ -26,16 +23,12 @@ content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <div id="spatial-os-container">
 
     <!-- CAMERA -->
-    <video
-        id="webcam"
-        autoplay
-        playsinline>
-    </video>
+    <video id="webcam" autoplay playsinline></video>
 
-    <!-- CANVAS -->
+    <!-- HAND TRACKING -->
     <canvas id="output_canvas"></canvas>
 
-    <!-- RETÍCULO -->
+    <!-- RETICLE -->
     <div class="spatial-reticle">
         <div class="reticle-core"></div>
     </div>
@@ -45,7 +38,7 @@ content="width=device-width, initial-scale=1.0, viewport-fit=cover">
         WORKSPACE HOME
     </div>
 
-    <!-- TOP PANEL -->
+    <!-- TOP HUD -->
     <header class="hud-top-panel glass-card">
 
         <div id="os-status-indicator">
@@ -54,112 +47,148 @@ content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
         <div class="hud-v-divider"></div>
 
-        <button
-            class="hud-btn"
-            id="global-menu-btn">
-            ☰
-        </button>
+        <button class="hud-btn" id="global-menu-btn">☰</button>
 
-        <button
-            class="hud-btn"
-            id="global-vr-btn">
-            🥽
-        </button>
+        <button class="hud-btn" id="global-vr-btn">🥽</button>
 
-        <button
-            class="hud-btn"
-            id="global-config-btn">
-            ⚙
-        </button>
+        <button class="hud-btn" id="global-config-btn">⋮</button>
 
     </header>
 
     <!-- WORKSPACE -->
-    <main
-        id="workspace-viewport"
-        class="workspace-animate-fade">
+    <main id="workspace-viewport" class="workspace-animate-fade">
     </main>
 
-    <!-- VOLUME -->
-    <aside
-        class="hud-right-slider glass-card spatial-tilt-right"
-        id="vertical-master-slider">
+    <!-- RIGHT HUD -->
+    <aside class="hud-right-slider glass-card spatial-tilt-right" id="vertical-master-slider">
 
-        <button class="slider-inc-btn">
-            ＋
-        </button>
+        <button class="slider-inc-btn">＋</button>
 
         <div class="v-track">
-
-            <div
-                class="v-bar-fill"
-                id="master-slider-fill"
-                style="height:50%;">
-            </div>
-
+            <div class="v-bar-fill" id="master-slider-fill" style="height:50%;"></div>
         </div>
 
-        <button class="slider-dec-btn">
-            －
-        </button>
+        <button class="slider-dec-btn">－</button>
 
     </aside>
 
     <!-- DOCK -->
     <footer class="hud-bottom-dock glass-card">
 
-        <button
-            class="dock-btn-round"
-            id="dock-back">
-            ↩
-        </button>
+        <button class="dock-btn-round" id="dock-back">↩</button>
+        <button class="dock-btn-round" id="dock-prev">⏮</button>
 
-        <button
-            class="dock-btn-round"
-            id="dock-prev">
-            ⏮
-        </button>
-
-        <button
-            class="dock-btn-main"
-            id="dock-center-action">
-
+        <button class="dock-btn-main" id="dock-center-action">
             <div class="main-core"></div>
-
         </button>
 
-        <button
-            class="dock-btn-round"
-            id="dock-next">
-            ⏭
-        </button>
-
-        <button
-            class="dock-btn-round"
-            id="dock-refresh">
-            ↻
-        </button>
+        <button class="dock-btn-round" id="dock-next">⏭</button>
+        <button class="dock-btn-round" id="dock-refresh">↻</button>
 
     </footer>
+
+    <!-- VR MODULE (INTEGRADO CORRETAMENTE) -->
+    <section class="vr-container" id="vr-module">
+
+        <div class="vr-header">
+            <h2>Modo VR</h2>
+            <p>Arraste para girar em 360°</p>
+        </div>
+
+        <div class="vr-viewer" id="vrViewer">
+            <img src="assets/imagem-vr.jpg" id="vrImage" class="vr-image">
+        </div>
+
+        <div class="vr-controls">
+            <button onclick="resetVR()">Resetar</button>
+            <button onclick="toggleAutoRotate()">Auto Girar</button>
+        </div>
+
+    </section>
 
 </div>
 
 <!-- FILE PICKER -->
+<input type="file" id="system-file-picker" accept="image/*,video/*,audio/*,application/pdf" multiple>
 
-<input
-type="file"
-id="system-file-picker"
-accept="image/*,video/*,application/pdf"
-multiple>
+<!-- AUDIO NODE -->
+<audio id="spatial-audio-node" style="display:none;"></audio>
 
-<audio
-id="spatial-audio-node"
-style="display:none;">
-</audio>
+<!-- SCRIPTS -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
 
-<!-- APP -->
+    const vrImage = document.getElementById("vrImage");
+    const vrViewer = document.getElementById("vrViewer");
 
-<script src="app.js"></script>
+    let isDragging = false;
+    let startX = 0;
+    let rotation = 0;
+    let autoRotate = false;
+    let autoRotateInterval;
+
+    if (vrImage && vrViewer) {
+
+        vrViewer.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            startX = e.clientX;
+        });
+
+        window.addEventListener("mouseup", () => {
+            isDragging = false;
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+
+            const delta = e.clientX - startX;
+            rotation += delta * 0.4;
+
+            vrImage.style.transform = `rotateY(${rotation}deg)`;
+
+            startX = e.clientX;
+        });
+
+        // TOUCH
+        vrViewer.addEventListener("touchstart", (e) => {
+            startX = e.touches[0].clientX;
+        });
+
+        vrViewer.addEventListener("touchmove", (e) => {
+            const delta = e.touches[0].clientX - startX;
+            rotation += delta * 0.4;
+
+            vrImage.style.transform = `rotateY(${rotation}deg)`;
+
+            startX = e.touches[0].clientX;
+        });
+
+    }
+
+    // RESET VR
+    window.resetVR = function () {
+        rotation = 0;
+        if (vrImage) vrImage.style.transform = "rotateY(0deg)";
+    };
+
+    // AUTO ROTATE
+    window.toggleAutoRotate = function () {
+        autoRotate = !autoRotate;
+
+        if (!vrImage) return;
+
+        if (autoRotate) {
+            autoRotateInterval = setInterval(() => {
+                rotation += 1;
+                vrImage.style.transform = `rotateY(${rotation}deg)`;
+            }, 16);
+        } else {
+            clearInterval(autoRotateInterval);
+        }
+    };
+
+});
+</script>
 
 </body>
 </html>
