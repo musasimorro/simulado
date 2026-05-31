@@ -3,380 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Vision HUD - Câmera Traseira | Interface por Gestos</title>
+    <title>Vision HUD - Interface por Gestos</title>
+    
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            font-family: 'Inter', 'Orbitron', sans-serif;
-            overflow: hidden;
-            background: #000;
-            height: 100vh;
-            width: 100vw;
-            position: fixed;
-            top: 0;
-            left: 0;
-        }
-
-        /* Vídeo da câmera traseira */
-        #webcam {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 0;
-            /* Sem espelhamento para câmera traseira */
-            transform: scaleX(1);
-        }
-
-        /* Canvas para desenhar as mãos */
-        #hand-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        .overlay-fx {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.5) 100%);
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        /* Container principal HUD */
-        .hud-container {
-            position: fixed;
-            z-index: 10;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            top: 0;
-            left: 0;
-        }
-
-        /* ========== ÁREAS DE TRABALHO (DESKTOPS) ========== */
-        .desktop-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            transform: translateX(0%);
-        }
-
-        .desktop {
-            min-width: 100%;
-            height: 100%;
-            padding: 80px 20px 120px 20px;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: #00BFFF rgba(0,191,255,0.2);
-        }
-
-        .desktop::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .desktop::-webkit-scrollbar-track {
-            background: rgba(0,191,255,0.1);
-            border-radius: 10px;
-        }
-
-        .desktop::-webkit-scrollbar-thumb {
-            background: #00BFFF;
-            border-radius: 10px;
-        }
-
-        /* Desktop Home */
-        .home-widget {
-            background: rgba(12, 20, 35, 0.4);
-            backdrop-filter: blur(20px);
-            border-radius: 30px;
-            border: 1px solid rgba(0, 191, 255, 0.5);
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .clock {
-            font-size: 70px;
-            font-family: 'Orbitron', monospace;
-            color: #00BFFF;
-            text-shadow: 0 0 20px #00BFFF;
-            letter-spacing: 5px;
-        }
-
-        .date {
-            font-size: 18px;
-            color: #ccf4ff;
-            margin-top: 10px;
-        }
-
-        .voice-search-container {
-            background: rgba(12, 20, 35, 0.4);
-            backdrop-filter: blur(20px);
-            border-radius: 30px;
-            border: 1px solid rgba(0, 191, 255, 0.5);
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        .voice-btn {
-            background: radial-gradient(circle at 30% 10%, #00BFFF, #0066aa);
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 15px;
-            cursor: pointer;
-            border: 2px solid rgba(255,255,255,0.6);
-            box-shadow: 0 0 20px #00BFFF;
-            transition: 0.2s;
-        }
-
-        .voice-btn:active {
-            transform: scale(0.95);
-        }
-
-        .voice-btn span {
-            font-size: 40px;
-        }
-
-        .search-result {
-            color: white;
-            text-align: center;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-
-        /* Desktop Arquivos */
-        .files-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 15px;
-            padding: 10px;
-        }
-
-        .file-card {
-            background: rgba(12, 20, 35, 0.5);
-            backdrop-filter: blur(20px);
-            border-radius: 15px;
-            border: 1px solid rgba(0, 191, 255, 0.4);
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            animation: floatIn 0.3s ease;
-        }
-
-        @keyframes floatIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .file-card:hover, .file-card.hand-hover {
-            transform: scale(1.05);
-            border-color: #00BFFF;
-            box-shadow: 0 0 20px rgba(0,191,255,0.5);
-        }
-
-        .file-card span:first-child {
-            font-size: 40px;
-            display: block;
-        }
-
-        .file-card .file-name {
-            font-size: 12px;
-            color: #ccf4ff;
-            margin-top: 8px;
-            word-break: break-all;
-        }
-
-        /* Desktop Pesquisa Google */
-        .google-search-container {
-            background: rgba(12, 20, 35, 0.4);
-            backdrop-filter: blur(20px);
-            border-radius: 30px;
-            border: 1px solid rgba(0, 191, 255, 0.5);
-            padding: 30px;
-        }
-
-        .google-logo {
-            text-align: center;
-            font-size: 50px;
-            font-family: 'Orbitron', monospace;
-            color: #00BFFF;
-            margin-bottom: 30px;
-        }
-
-        .search-box {
-            width: 100%;
-            padding: 15px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid #00BFFF;
-            border-radius: 50px;
-            color: white;
-            font-size: 16px;
-            font-family: 'Inter', monospace;
-            text-align: center;
-        }
-
-        .webview-container {
-            margin-top: 20px;
-            height: 400px;
-            border-radius: 20px;
-            overflow: hidden;
-            border: 1px solid #00BFFF;
-        }
-
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: white;
-        }
-
-        /* Indicador de desktop */
-        .desktop-indicator {
-            position: absolute;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
-            z-index: 20;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
-            padding: 8px 20px;
-            border-radius: 30px;
-        }
-
-        .indicator-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.3);
-            transition: all 0.3s;
-        }
-
-        .indicator-dot.active {
-            background: #00BFFF;
-            box-shadow: 0 0 10px #00BFFF;
-            width: 20px;
-            border-radius: 10px;
-        }
-
-        /* Menu lateral */
-        .side-menu {
-            position: absolute;
-            left: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            z-index: 20;
-        }
-
-        .menu-item {
-            width: 60px;
-            height: 60px;
-            background: rgba(12, 20, 35, 0.5);
-            backdrop-filter: blur(20px);
-            border-radius: 15px;
-            border: 1px solid rgba(0, 191, 255, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .menu-item.active {
-            border-color: #00BFFF;
-            box-shadow: 0 0 15px #00BFFF;
-            background: rgba(0, 191, 255, 0.2);
-        }
-
-        /* Instruções */
-        .gesture-guide {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(10px);
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 10px;
-            color: #00BFFF;
-            font-family: 'Orbitron', monospace;
-            z-index: 20;
-            pointer-events: none;
-        }
-
-        /* Botão para alternar câmera */
-        .camera-toggle {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(10px);
-            padding: 10px;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 20;
-            border: 1px solid #00BFFF;
-            font-size: 24px;
-        }
-
-        @media (max-width: 700px) {
-            .clock { font-size: 45px; }
-            .menu-item { width: 50px; height: 50px; font-size: 24px; }
-            .files-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-        }
-    </style>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
+    <!-- Background de fallback -->
+    <div class="fallback-bg" id="fallback-bg"></div>
+    
+    <!-- Webcam e Canvas -->
     <video id="webcam" autoplay playsinline muted></video>
     <canvas id="hand-canvas"></canvas>
     <div class="overlay-fx"></div>
 
+    <!-- Interface HUD -->
     <div class="hud-container">
         <!-- Menu lateral -->
         <div class="side-menu">
@@ -385,9 +34,9 @@
             <div class="menu-item" data-desktop="2">🔍</div>
         </div>
 
-        <!-- Container das áreas de trabalho -->
+        <!-- Áreas de trabalho -->
         <div class="desktop-container" id="desktop-container">
-            <!-- Desktop 1: Home -->
+            <!-- Desktop Home -->
             <div class="desktop" data-desktop="0">
                 <div class="home-widget">
                     <div class="clock" id="clock">--:--</div>
@@ -397,26 +46,26 @@
                     <div class="voice-btn" id="voice-btn">
                         <span>🎤</span>
                     </div>
-                    <div class="search-result" id="search-result">Toque ou aponte para pesquisar</div>
+                    <div class="search-result" id="search-result">Aponte ou toque para pesquisar</div>
                 </div>
             </div>
 
-            <!-- Desktop 2: Arquivos -->
+            <!-- Desktop Arquivos -->
             <div class="desktop" data-desktop="1">
                 <div class="files-grid" id="files-grid">
-                    <div class="file-card empty-placeholder" style="grid-column: 1/-1; text-align: center; padding: 40px;">
+                    <div class="file-card empty-placeholder">
                         <span>📂</span>
                         <div class="file-name">Arraste arquivos ou use o botão abaixo</div>
                     </div>
                 </div>
-                <div style="text-align: center; margin-top: 20px;">
-                    <div class="voice-btn" id="upload-btn" style="width: 60px; height: 60px; display: inline-flex; margin: 0 10px;">
+                <div class="upload-area">
+                    <div class="voice-btn" id="upload-btn">
                         <span>📎</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Desktop 3: Pesquisa Google -->
+            <!-- Desktop Pesquisa -->
             <div class="desktop" data-desktop="2">
                 <div class="google-search-container">
                     <div class="google-logo">🔍 VISION SEARCH</div>
@@ -429,443 +78,36 @@
         </div>
 
         <!-- Indicador de desktop -->
-        <div class="desktop-indicator" id="desktop-indicator">
+        <div class="desktop-indicator">
             <div class="indicator-dot active"></div>
             <div class="indicator-dot"></div>
             <div class="indicator-dot"></div>
         </div>
 
+        <!-- Guia de gestos -->
         <div class="gesture-guide">
             🖐️ GESTOS: 👆 Indicador = Clique | ✌️ Pinça dupla = Zoom | 🤚 Deslizar = Trocar área
         </div>
 
-        <!-- Botão para alternar câmera (frontal/traseira) -->
-        <div class="camera-toggle" id="camera-toggle">
-            🔄
+        <!-- Status Bar -->
+        <div class="status-bar" id="status-bar">🟢 INICIANDO...</div>
+
+        <!-- Seletor de câmera -->
+        <div class="camera-selector" id="camera-selector" style="display: none;">
+            <select id="camera-select">
+                <option value="">Carregando câmeras...</option>
+            </select>
         </div>
     </div>
 
-    <input type="file" id="file-input" accept="image/*,video/*,audio/*,application/*" multiple style="display: none">
+    <!-- Input de arquivos oculto -->
+    <input type="file" id="file-input" accept="image/*,video/*" multiple style="display: none">
 
-    <script>
-        // Variáveis globais
-        let currentDesktop = 0;
-        let mediaElements = [];
-        let pinchStartDistance = 0;
-        let currentScale = 1;
-        let lastHandX = null;
-        let swipeThreshold = 50;
-        let currentFacingMode = 'environment'; // 'environment' = traseira, 'user' = frontal
-        
-        // Elementos
-        const desktopContainer = document.getElementById('desktop-container');
-        const handCanvas = document.getElementById('hand-canvas');
-        const ctx = handCanvas.getContext('2d');
-        const videoElement = document.getElementById('webcam');
-        const filesGrid = document.getElementById('files-grid');
-        const fileInput = document.getElementById('file-input');
-        const clockElement = document.getElementById('clock');
-        const dateElement = document.getElementById('date');
-        const searchInput = document.getElementById('search-input');
-        const searchIframe = document.getElementById('search-iframe');
-        const voiceBtn = document.getElementById('voice-btn');
-        const searchResult = document.getElementById('search-result');
-        const cameraToggle = document.getElementById('camera-toggle');
-        
-        // ========== RELÓGIO ==========
-        function updateClock() {
-            const now = new Date();
-            clockElement.textContent = now.toLocaleTimeString('pt-BR');
-            dateElement.textContent = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-        
-        // ========== TROCAR ÁREA DE TRABALHO ==========
-        function switchDesktop(index) {
-            if (index < 0) index = 0;
-            if (index > 2) index = 2;
-            currentDesktop = index;
-            desktopContainer.style.transform = `translateX(-${currentDesktop * 100}%)`;
-            
-            // Atualizar indicadores
-            document.querySelectorAll('.indicator-dot').forEach((dot, i) => {
-                dot.classList.toggle('active', i === currentDesktop);
-            });
-            document.querySelectorAll('.menu-item').forEach((item, i) => {
-                item.classList.toggle('active', i === currentDesktop);
-            });
-        }
-        
-        document.querySelectorAll('.menu-item').forEach((item, index) => {
-            item.addEventListener('click', () => switchDesktop(index));
-        });
-        
-        // ========== GERENCIAR ARQUIVOS ==========
-        function addFileToDesktop(file) {
-            const url = URL.createObjectURL(file);
-            const fileCard = document.createElement('div');
-            fileCard.className = 'file-card';
-            fileCard.setAttribute('data-url', url);
-            
-            let icon = '📄';
-            if (file.type.startsWith('image/')) icon = '🖼️';
-            else if (file.type.startsWith('video/')) icon = '🎬';
-            else if (file.type.startsWith('audio/')) icon = '🎵';
-            
-            fileCard.innerHTML = `
-                <span>${icon}</span>
-                <div class="file-name">${file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name}</div>
-            `;
-            
-            fileCard.addEventListener('click', () => {
-                if (file.type.startsWith('image/')) {
-                    window.open(url, '_blank');
-                } else if (file.type.startsWith('video/')) {
-                    const videoWindow = window.open();
-                    videoWindow.document.write(`<video src="${url}" controls autoplay style="width:100%;height:100%"></video>`);
-                } else {
-                    alert(`Arquivo: ${file.name}\nTipo: ${file.type || 'desconhecido'}`);
-                }
-            });
-            
-            // Remover placeholder se existir
-            const placeholder = filesGrid.querySelector('.empty-placeholder');
-            if (placeholder && filesGrid.children.length === 1) {
-                filesGrid.removeChild(placeholder);
-            }
-            
-            filesGrid.appendChild(fileCard);
-            mediaElements.push(fileCard);
-        }
-        
-        document.getElementById('upload-btn').addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', (e) => {
-            Array.from(e.target.files).forEach(file => addFileToDesktop(file));
-            fileInput.value = '';
-        });
-        
-        // Drag & drop
-        window.addEventListener('dragover', (e) => e.preventDefault());
-        window.addEventListener('drop', (e) => {
-            e.preventDefault();
-            Array.from(e.dataTransfer.files).forEach(file => addFileToDesktop(file));
-        });
-        
-        // ========== PESQUISA POR VOZ ==========
-        let recognition = null;
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            
-            recognition.onresult = (event) => {
-                const query = event.results[0][0].transcript;
-                searchResult.textContent = `🔍 Pesquisando: "${query}"`;
-                searchInput.value = query;
-                performSearch(query);
-            };
-            
-            recognition.onerror = () => {
-                searchResult.textContent = '🎤 Não entendi. Tente novamente.';
-                setTimeout(() => {
-                    searchResult.textContent = 'Aponte ou toque para pesquisar';
-                }, 2000);
-            };
-        }
-        
-        voiceBtn.addEventListener('click', () => {
-            if (recognition) {
-                searchResult.textContent = '🎤 Ouvindo...';
-                recognition.start();
-            } else {
-                searchResult.textContent = '❌ Reconhecimento de voz não suportado';
-            }
-        });
-        
-        function performSearch(query) {
-            if (query.trim()) {
-                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&igu=1`;
-                searchIframe.src = searchUrl;
-                searchResult.textContent = `✅ Resultados para: "${query}"`;
-                setTimeout(() => {
-                    if (currentDesktop === 2) {
-                        searchResult.textContent = '🔍 Pesquisa concluída';
-                    }
-                }, 3000);
-            }
-        }
-        
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') performSearch(searchInput.value);
-        });
-        
-        // ========== FUNÇÃO PARA INICIAR CÂMERA (COM MODO TRASEIRO) ==========
-        let currentHands = null;
-        let currentCamera = null;
-        
-        async function startCamera(facingMode) {
-            // Parar câmera anterior se existir
-            if (videoElement.srcObject) {
-                const tracks = videoElement.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-            }
-            
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: facingMode } },
-                    audio: false
-                });
-                videoElement.srcObject = stream;
-                await videoElement.play();
-                
-                // Reiniciar MediaPipe com a nova câmera
-                if (currentHands) {
-                    currentHands.close();
-                }
-                initMediaPipe();
-                
-                console.log(`📷 Câmera ${facingMode === 'environment' ? 'TRASEIRA' : 'FRONTAL'} ativada`);
-            } catch (err) {
-                console.error('Erro ao acessar câmera:', err);
-                // Tentar com facingMode padrão se falhar
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: false
-                    });
-                    videoElement.srcObject = stream;
-                    await videoElement.play();
-                    initMediaPipe();
-                } catch (fallbackErr) {
-                    alert('Não foi possível acessar a câmera. Verifique as permissões.');
-                }
-            }
-        }
-        
-        // Alternar entre câmera frontal e traseira
-        cameraToggle.addEventListener('click', () => {
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-            startCamera(currentFacingMode);
-            
-            // Ajustar espelhamento: traseira não espelha, frontal espelha
-            if (currentFacingMode === 'user') {
-                videoElement.style.transform = 'scaleX(-1)';
-            } else {
-                videoElement.style.transform = 'scaleX(1)';
-            }
-        });
-        
-        // ========== MEDIAPIPE HANDS ==========
-        function initMediaPipe() {
-            currentHands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-            });
-            
-            currentHands.setOptions({
-                maxNumHands: 2,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-            
-            currentHands.onResults(onHandResults);
-            
-            currentCamera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await currentHands.send({ image: videoElement });
-                },
-                width: 1280,
-                height: 720
-            });
-            currentCamera.start();
-        }
-        
-        function onHandResults(results) {
-            ctx.save();
-            ctx.clearRect(0, 0, handCanvas.width, handCanvas.height);
-            
-            // Redimensionar canvas
-            if (handCanvas.width !== window.innerWidth || handCanvas.height !== window.innerHeight) {
-                handCanvas.width = window.innerWidth;
-                handCanvas.height = window.innerHeight;
-            }
-            
-            ctx.drawImage(results.image, 0, 0, handCanvas.width, handCanvas.height);
-            
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                // Desenhar landmarks e conexões
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawHand(landmarks);
-                }
-                
-                // Detectar gestos com duas mãos
-                if (results.multiHandLandmarks.length === 2) {
-                    detectTwoHandGestures(results.multiHandLandmarks);
-                }
-                
-                // Detectar swipe com uma mão
-                if (results.multiHandLandmarks.length >= 1) {
-                    detectSwipeGesture(results.multiHandLandmarks[0]);
-                }
-                
-                // Detectar clique com dedo indicador
-                detectIndexFingerClick(results.multiHandLandmarks);
-            }
-            
-            ctx.restore();
-        }
-        
-        function drawHand(landmarks) {
-            // Desenhar pontos
-            for (let i = 0; i < landmarks.length; i++) {
-                const x = landmarks[i].x * handCanvas.width;
-                const y = landmarks[i].y * handCanvas.height;
-                
-                ctx.beginPath();
-                ctx.arc(x, y, 6, 0, 2 * Math.PI);
-                ctx.fillStyle = '#00BFFF';
-                ctx.fill();
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#00BFFF';
-            }
-            
-            // Desenhar linhas (conexões)
-            const connections = [
-                [0,1], [1,2], [2,3], [3,4],
-                [0,5], [5,6], [6,7], [7,8],
-                [0,9], [9,10], [10,11], [11,12],
-                [0,13], [13,14], [14,15], [15,16],
-                [0,17], [17,18], [18,19], [19,20]
-            ];
-            
-            ctx.beginPath();
-            ctx.strokeStyle = '#00BFFF';
-            ctx.lineWidth = 3;
-            for (let conn of connections) {
-                const p1 = landmarks[conn[0]];
-                const p2 = landmarks[conn[1]];
-                ctx.moveTo(p1.x * handCanvas.width, p1.y * handCanvas.height);
-                ctx.lineTo(p2.x * handCanvas.width, p2.y * handCanvas.height);
-                ctx.stroke();
-            }
-        }
-        
-        let lastSwipeTime = 0;
-        const SWIPE_COOLDOWN = 500;
-        
-        function detectSwipeGesture(landmarks) {
-            const palmCenter = landmarks[0];
-            const currentX = palmCenter.x;
-            
-            if (lastHandX !== null) {
-                const deltaX = currentX - lastHandX;
-                const now = Date.now();
-                
-                if (Math.abs(deltaX) > 0.03 && (now - lastSwipeTime) > SWIPE_COOLDOWN) {
-                    if (deltaX > 0.03) {
-                        switchDesktop(currentDesktop - 1);
-                        lastSwipeTime = now;
-                    } else if (deltaX < -0.03) {
-                        switchDesktop(currentDesktop + 1);
-                        lastSwipeTime = now;
-                    }
-                }
-            }
-            lastHandX = currentX;
-        }
-        
-        let pinchActive = false;
-        
-        function detectTwoHandGestures(handsLandmarks) {
-            const hand1 = handsLandmarks[0];
-            const hand2 = handsLandmarks[1];
-            
-            const thumb1 = hand1[4];
-            const index1 = hand1[8];
-            const thumb2 = hand2[4];
-            const index2 = hand2[8];
-            
-            const distance1 = Math.hypot(thumb1.x - index1.x, thumb1.y - index1.y);
-            const distance2 = Math.hypot(thumb2.x - index2.x, thumb2.y - index2.y);
-            
-            const isPinching1 = distance1 < 0.05;
-            const isPinching2 = distance2 < 0.05;
-            
-            if (isPinching1 && isPinching2) {
-                const center1 = { x: (thumb1.x + index1.x) / 2, y: (thumb1.y + index1.y) / 2 };
-                const center2 = { x: (thumb2.x + index2.x) / 2, y: (thumb2.y + index2.y) / 2 };
-                const currentDistance = Math.hypot(center1.x - center2.x, center1.y - center2.y);
-                
-                if (!pinchActive) {
-                    pinchActive = true;
-                    pinchStartDistance = currentDistance;
-                    currentScale = 1;
-                } else {
-                    const scaleDelta = currentDistance / pinchStartDistance;
-                    if (Math.abs(scaleDelta - 1) > 0.05) {
-                        const newScale = Math.min(2, Math.max(0.5, currentScale * scaleDelta));
-                        currentScale = newScale;
-                        const currentDesktopDiv = document.querySelector(`.desktop[data-desktop="${currentDesktop}"]`);
-                        currentDesktopDiv.style.transform = `scale(${currentScale})`;
-                        currentDesktopDiv.style.transition = 'transform 0.1s ease';
-                        pinchStartDistance = currentDistance;
-                    }
-                }
-            } else {
-                pinchActive = false;
-            }
-        }
-        
-        function detectIndexFingerClick(handsLandmarks) {
-            for (const landmarks of handsLandmarks) {
-                const indexTip = landmarks[8];
-                const indexMcp = landmarks[5];
-                
-                const isExtended = indexTip.y < indexMcp.y;
-                
-                if (isExtended) {
-                    const x = indexTip.x * window.innerWidth;
-                    const y = indexTip.y * window.innerHeight;
-                    
-                    const clickableElements = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn, .camera-toggle');
-                    
-                    for (let element of clickableElements) {
-                        const rect = element.getBoundingClientRect();
-                        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-                            element.classList.add('hand-hover');
-                            
-                            if (!element.hasAttribute('data-hover-start')) {
-                                element.setAttribute('data-hover-start', Date.now());
-                            } else {
-                                const hoverTime = Date.now() - parseInt(element.getAttribute('data-hover-start'));
-                                if (hoverTime > 500) {
-                                    element.click();
-                                    element.removeAttribute('data-hover-start');
-                                }
-                            }
-                        } else {
-                            element.classList.remove('hand-hover');
-                            element.removeAttribute('data-hover-start');
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Iniciar com câmera TRASEIRA (environment)
-        startCamera('environment');
-        
-        // Redimensionar canvas
-        window.addEventListener('resize', () => {
-            handCanvas.width = window.innerWidth;
-            handCanvas.height = window.innerHeight;
-        });
-        
-        console.log('🚀 Sistema HUD com CÂMERA TRASEIRA ativado!');
-        console.log('Gestos: 👆 Indicador = clique | ✌️ Pinça dupla = zoom | 🤚 Deslizar = trocar área');
-    </script>
+    <!-- JavaScript Modules -->
+    <script src="js/desktop.js"></script>
+    <script src="js/files.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/gestures.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
