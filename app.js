@@ -263,3 +263,111 @@ function checkDOMCollision(x, y) {
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
             el.classList.add('hud-hover');
             return el.id || el.className;
+        }
+    }
+    return null;
+}
+
+// Resposta Dinâmica do Frame do MediaPipe Hands
+function onResults(results) {
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+
+        // Esqueleto Virtual Suave
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.25)', lineWidth: 1});
+        drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 0.5, radius: 1});
+
+        const thumbTip = landmarks[4];
+        const indexTip = landmarks[8];
+
+        // Análise de Gesto de Pinça
+        const distance = Math.sqrt(Math.pow(thumbTip.x - indexTip.x, 2) + Math.pow(thumbTip.y - indexTip.y, 2));
+        const isPinching = distance < 0.052;
+
+        const screenX = indexTip.x * canvasElement.width;
+        const screenY = indexTip.y * canvasElement.height;
+
+        // Executa Monitoramento de Gestos de Navegação Volumétrica (Swipe)
+        detectSwipe(indexTip.x);
+
+        let targetHit = checkDOMCollision(screenX, screenY);
+        const now = Date.now();
+
+        if (isPinching) {
+            // Executores de Cliques Físicos por Mapeamento Direto de ID
+            if (targetHit && (now - lastActionTime > 800)) {
+                lastActionTime = now;
+
+                if (targetHit.includes('shortcut-item') || targetHit.includes('hud-btn')) {
+                    const hoveredElement = document.querySelector('.hud-hover');
+                    if (hoveredElement) {
+                        const targetID = hoveredElement.id;
+                        if (targetID === 'sc-media') loadWorkspace('media');
+                        if (targetID === 'sc-browser') loadWorkspace('browser');
+                        if (targetID === 'sc-files') loadWorkspace('files');
+                        if (targetID === 'sc-ai') loadWorkspace('ai');
+                        
+                        if (targetID === 'media-trigger-upload' || targetID === 'file-zone-btn') filePicker.click();
+                        if (targetID === 'toggle-mic-btn' && voiceRecognitionNode) {
+                            if (!recognitionActive) {
+                                voiceRecognitionNode.start();
+                                recognitionActive = true;
+                            } else {
+                                voiceRecognitionNode.stop();
+                                recognitionActive = false;
+                            }
+                            updateMicUI(recognitionActive);
+                        }
+                    }
+                }
+                // Controle do Dock Base do VisionOS
+                else if (targetHit === 'dock-refresh') { location.reload(); }
+                else if (targetHit === 'dock-next') {
+                    let idx = (workspaceOrder.indexOf(currentWorkspace) + 1) % workspaceOrder.length;
+                    loadWorkspace(workspaceOrder[idx]);
+                }
+                else if (targetHit === 'dock-prev' || targetHit === 'dock-back') {
+                    let idx = (workspaceOrder.indexOf(currentWorkspace) - 1 + workspaceOrder.length) % workspaceOrder.length;
+                    loadWorkspace(workspaceOrder[idx]);
+                }
+                // Ajuste de Volume via Slider da Direita por Colisão Direct-Touch
+                else if (targetHit === 'vertical-master-slider') {
+                    adjustVolume(screenY < window.innerHeight / 2 ? 0.1 : -0.1);
+                }
+            }
+        }
+    } else {
+        lastHandX = null; // Limpa rastro ao remover a mão do campo de visão
+    }
+}
+
+// Ouvintes de upload e arrasto físico de mídias locais
+filePicker.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    activeFileObject = { name: file.name, type: file.type, url: URL.createObjectURL(file) };
+    if (currentWorkspace === 'media' || currentWorkspace === 'files') {
+        loadWorkspace(currentWorkspace);
+    }
+});
+
+// Inicializador da Engine do MediaPipe
+const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.65, minTrackingConfidence: 0.65 });
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+    onFrame: async () => { await hands.send({ image: videoElement }); },
+    width: 1280, height: 720, facingMode: "environment"
+});
+
+// Boot Inicializador do Sistema Operacional Espacial
+window.addEventListener('resize', () => { canvasElement.width = window.innerWidth; canvasElement.height = window.innerHeight; });
+canvasElement.width = window.innerWidth; canvasElement.height = window.innerHeight;
+
+loadWorkspace("home");
+camera.start();
+        
