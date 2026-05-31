@@ -1,194 +1,288 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-<title>MR Spatial OS</title>
-
-<link rel="stylesheet" href="style.css">
-
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <title>MR Spatial OS | Mixed Reality Operating System</title>
+    
+    <!-- Meta tags para melhor experiência mobile -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#01040a">
+    
+    <!-- Link para o CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- MediaPipe Hands Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    
+    <style>
+        /* Estilos adicionais de fallback e performance */
+        * {
+            box-sizing: border-box;
+        }
+        
+        /* Previne scroll indesejado */
+        html, body {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Melhorias de performance para animações */
+        .glass-card, .dock-btn-round, .dock-btn-main, .shortcut-item {
+            will-change: transform, box-shadow;
+        }
+        
+        /* Loading inicial */
+        .initial-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #01040a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(0,191,255,0.2);
+            border-top-color: var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: var(--neon-blue);
+            font-size: 14px;
+            letter-spacing: 3px;
+            font-weight: bold;
+        }
+    </style>
 </head>
-
 <body>
 
-<div id="spatial-os-container">
-
-    <!-- CAMERA -->
-    <video id="webcam" autoplay playsinline></video>
-
-    <!-- HAND TRACKING -->
-    <canvas id="output_canvas"></canvas>
-
-    <!-- RETICLE -->
-    <div class="spatial-reticle">
-        <div class="reticle-core"></div>
+    <!-- Loading inicial -->
+    <div class="initial-loading" id="initial-loading">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">INICIANDO MR SPATIAL OS</div>
+        </div>
     </div>
 
-    <!-- TOAST -->
-    <div id="workspace-overlay-toast">
-        WORKSPACE HOME
+    <!-- Container Principal -->
+    <div id="spatial-os-container">
+        
+        <!-- Webcam Feed -->
+        <video id="webcam" autoplay playsinline></video>
+        
+        <!-- Canvas para landmarks do MediaPipe -->
+        <canvas id="output_canvas"></canvas>
+        
+        <!-- Workspace Viewport (onde os apps aparecem) -->
+        <div id="workspace-viewport"></div>
+        
+        <!-- Reticle para mira espacial -->
+        <div class="spatial-reticle">
+            <div class="reticle-core"></div>
+        </div>
+        
+        <!-- Toast para feedback de ações -->
+        <div id="workspace-overlay-toast"></div>
+        
+        <!-- TOP HUD - Barra superior -->
+        <div class="hud-top-panel glass-card">
+            <div id="os-status-indicator">MR SPATIAL OS</div>
+            <div class="hud-v-divider"></div>
+            <button class="hud-btn" id="hud-home" title="Home">⌂</button>
+            <button class="hud-btn" id="hud-status" title="Status">●</button>
+            <button class="hud-btn" id="hud-mic" title="Microfone">🎙️</button>
+        </div>
+        
+        <!-- RIGHT HUD - Controle de Volume Vertical -->
+        <div class="hud-right-slider glass-card" id="vertical-master-slider">
+            <button class="slider-inc-btn" id="vol-up">+</button>
+            <div class="v-track">
+                <div class="v-bar-fill" id="master-slider-fill" style="height: 50%;"></div>
+            </div>
+            <button class="slider-dec-btn" id="vol-down">-</button>
+        </div>
+        
+        <!-- BOTTOM DOCK - Barra de navegação estilo visionOS -->
+        <div class="hud-bottom-dock glass-card">
+            <button class="dock-btn-round" id="dock-prev" title="Anterior">◀</button>
+            <button class="dock-btn-round" id="dock-next" title="Próximo">▶</button>
+            <div class="dock-v-divider"></div>
+            <button class="dock-btn-round" id="dock-back" title="Home">⌂</button>
+            <button class="dock-btn-round" id="dock-refresh" title="Recarregar">⟳</button>
+            <button class="dock-btn-main" id="dock-center-action" title="Carregar Arquivo">
+                <div class="main-core"></div>
+            </button>
+        </div>
+        
+        <!-- File Picker oculto para upload de arquivos -->
+        <input type="file" id="system-file-picker" style="display: none;" accept="image/*,video/*,audio/*,.mp4,.mp3,.jpg,.png,.gif">
+        
     </div>
 
-    <!-- TOP HUD -->
-    <header class="hud-top-panel glass-card">
-
-        <div id="os-status-indicator">
-            SYSTEM ONLINE
-        </div>
-
-        <div class="hud-v-divider"></div>
-
-        <button class="hud-btn" id="global-menu-btn">☰</button>
-
-        <button class="hud-btn" id="global-vr-btn">🥽</button>
-
-        <button class="hud-btn" id="global-config-btn">⋮</button>
-
-    </header>
-
-    <!-- WORKSPACE -->
-    <main id="workspace-viewport" class="workspace-animate-fade">
-    </main>
-
-    <!-- RIGHT HUD -->
-    <aside class="hud-right-slider glass-card spatial-tilt-right" id="vertical-master-slider">
-
-        <button class="slider-inc-btn">＋</button>
-
-        <div class="v-track">
-            <div class="v-bar-fill" id="master-slider-fill" style="height:50%;"></div>
-        </div>
-
-        <button class="slider-dec-btn">－</button>
-
-    </aside>
-
-    <!-- DOCK -->
-    <footer class="hud-bottom-dock glass-card">
-
-        <button class="dock-btn-round" id="dock-back">↩</button>
-        <button class="dock-btn-round" id="dock-prev">⏮</button>
-
-        <button class="dock-btn-main" id="dock-center-action">
-            <div class="main-core"></div>
-        </button>
-
-        <button class="dock-btn-round" id="dock-next">⏭</button>
-        <button class="dock-btn-round" id="dock-refresh">↻</button>
-
-    </footer>
-
-    <!-- VR MODULE (INTEGRADO CORRETAMENTE) -->
-    <section class="vr-container" id="vr-module">
-
-        <div class="vr-header">
-            <h2>Modo VR</h2>
-            <p>Arraste para girar em 360°</p>
-        </div>
-
-        <div class="vr-viewer" id="vrViewer">
-            <img src="assets/imagem-vr.jpg" id="vrImage" class="vr-image">
-        </div>
-
-        <div class="vr-controls">
-            <button onclick="resetVR()">Resetar</button>
-            <button onclick="toggleAutoRotate()">Auto Girar</button>
-        </div>
-
-    </section>
-
-</div>
-
-<!-- FILE PICKER -->
-<input type="file" id="system-file-picker" accept="image/*,video/*,audio/*,application/pdf" multiple>
-
-<!-- AUDIO NODE -->
-<audio id="spatial-audio-node" style="display:none;"></audio>
-
-<!-- SCRIPTS -->
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-
-    const vrImage = document.getElementById("vrImage");
-    const vrViewer = document.getElementById("vrViewer");
-
-    let isDragging = false;
-    let startX = 0;
-    let rotation = 0;
-    let autoRotate = false;
-    let autoRotateInterval;
-
-    if (vrImage && vrViewer) {
-
-        vrViewer.addEventListener("mousedown", (e) => {
-            isDragging = true;
-            startX = e.clientX;
+    <!-- Script principal -->
+    <script src="app (1).js"></script>
+    
+    <script>
+        // Script adicional para garantir funcionalidades completas
+        
+        // Esconder loading quando tudo estiver carregado
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const loading = document.getElementById('initial-loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(function() {
+                        loading.style.display = 'none';
+                    }, 500);
+                }
+            }, 1500);
         });
-
-        window.addEventListener("mouseup", () => {
-            isDragging = false;
+        
+        // Controle de volume adicional
+        document.addEventListener('DOMContentLoaded', function() {
+            const volUp = document.getElementById('vol-up');
+            const volDown = document.getElementById('vol-down');
+            
+            if (volUp) {
+                volUp.addEventListener('click', function() {
+                    if (typeof adjustVolume === 'function') {
+                        adjustVolume(0.1);
+                    }
+                });
+            }
+            
+            if (volDown) {
+                volDown.addEventListener('click', function() {
+                    if (typeof adjustVolume === 'function') {
+                        adjustVolume(-0.1);
+                    }
+                });
+            }
+            
+            // Botão Home do HUD
+            const hudHome = document.getElementById('hud-home');
+            if (hudHome && typeof loadWorkspace === 'function') {
+                hudHome.addEventListener('click', function() {
+                    loadWorkspace('home');
+                });
+            }
+            
+            // Botão Microfone do HUD
+            const hudMic = document.getElementById('hud-mic');
+            if (hudMic) {
+                hudMic.addEventListener('click', function() {
+                    const micBtn = document.getElementById('toggle-mic-btn');
+                    if (micBtn) {
+                        micBtn.click();
+                    }
+                });
+            }
+            
+            // Botão Status do HUD
+            const hudStatus = document.getElementById('hud-status');
+            if (hudStatus) {
+                hudStatus.addEventListener('click', function() {
+                    if (typeof toastIndicator !== 'undefined' && toastIndicator) {
+                        toastIndicator.innerText = 'SYSTEM STATUS: ONLINE';
+                        toastIndicator.style.opacity = '1';
+                        setTimeout(() => {
+                            toastIndicator.style.opacity = '0';
+                        }, 1500);
+                    }
+                });
+            }
+            
+            // Atualizar relógio no desktop se necessário
+            function updateDesktopClock() {
+                const desktopClock = document.querySelector('.desktop-clock');
+                if (desktopClock) {
+                    const now = new Date();
+                    desktopClock.innerText = now.toLocaleTimeString('pt-BR');
+                }
+                requestAnimationFrame(updateDesktopClock);
+            }
+            updateDesktopClock();
         });
-
-        window.addEventListener("mousemove", (e) => {
-            if (!isDragging) return;
-
-            const delta = e.clientX - startX;
-            rotation += delta * 0.4;
-
-            vrImage.style.transform = `rotateY(${rotation}deg)`;
-
-            startX = e.clientX;
+        
+        // Adicionar efeito de profundidade nos elementos ao mover o mouse/gesto
+        document.addEventListener('mousemove', function(e) {
+            const containers = document.querySelectorAll('.glass-card, .desktop-icon');
+            const mouseX = e.clientX / window.innerWidth - 0.5;
+            const mouseY = e.clientY / window.innerHeight - 0.5;
+            
+            containers.forEach(container => {
+                const depth = 10;
+                const rotateY = mouseX * depth;
+                const rotateX = mouseY * depth;
+                
+                // Aplica efeito apenas em elementos com a classe spatial-tilt
+                if (!container.classList.contains('spatial-tilt-left') && 
+                    !container.classList.contains('spatial-tilt-right')) {
+                    container.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(5px)`;
+                }
+            });
         });
-
-        // TOUCH
-        vrViewer.addEventListener("touchstart", (e) => {
-            startX = e.touches[0].clientX;
+        
+        // Prevenir contexto de toque para melhor experiência
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.closest('.glass-card, .dock-btn-round, .dock-btn-main, .shortcut-item, .desktop-icon')) {
+                // Permite cliques normais
+            }
         });
-
-        vrViewer.addEventListener("touchmove", (e) => {
-            const delta = e.touches[0].clientX - startX;
-            rotation += delta * 0.4;
-
-            vrImage.style.transform = `rotateY(${rotation}deg)`;
-
-            startX = e.touches[0].clientX;
-        });
-
-    }
-
-    // RESET VR
-    window.resetVR = function () {
-        rotation = 0;
-        if (vrImage) vrImage.style.transform = "rotateY(0deg)";
-    };
-
-    // AUTO ROTATE
-    window.toggleAutoRotate = function () {
-        autoRotate = !autoRotate;
-
-        if (!vrImage) return;
-
-        if (autoRotate) {
-            autoRotateInterval = setInterval(() => {
-                rotation += 1;
-                vrImage.style.transform = `rotateY(${rotation}deg)`;
-            }, 16);
-        } else {
-            clearInterval(autoRotateInterval);
+        
+        // Garantir que o MediaPipe seja inicializado corretamente
+        if (typeof hands !== 'undefined' && typeof camera !== 'undefined') {
+            console.log('MR Spatial OS: MediaPipe inicializado');
         }
-    };
-
-});
-</script>
-
+        
+        // Função para simular clique com gestos (fallback)
+        let lastGestureTime = 0;
+        function simulateClickOnTarget(targetElement) {
+            const now = Date.now();
+            if (now - lastGestureTime > 500 && targetElement) {
+                lastGestureTime = now;
+                targetElement.click();
+                
+                // Feedback visual do clique
+                const originalBorder = targetElement.style.borderColor;
+                targetElement.style.transition = '0.1s';
+                targetElement.style.borderColor = 'white';
+                setTimeout(() => {
+                    targetElement.style.borderColor = originalBorder;
+                }, 150);
+            }
+        }
+        
+        // Exportar funções para uso global
+        window.simulateClickOnTarget = simulateClickOnTarget;
+        
+        // Log do sistema
+        console.log('%c🚀 MR SPATIAL OS | Mixed Reality Operating System', 'color: #00BFFF; font-size: 16px; font-weight: bold;');
+        console.log('%cVersão 1.0 | VisionOS Style | MediaPipe Hands Enabled', 'color: #00BFFF; font-size: 12px;');
+    </script>
 </body>
 </html>
