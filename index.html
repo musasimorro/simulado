@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Vision HUD - Interface por Gestos | MR Futurista</title>
+    <title>Vision HUD - Câmera Traseira | Interface por Gestos</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -27,7 +27,7 @@
             left: 0;
         }
 
-        /* Vídeo da câmera */
+        /* Vídeo da câmera traseira */
         #webcam {
             position: absolute;
             top: 0;
@@ -36,7 +36,8 @@
             height: 100%;
             object-fit: cover;
             z-index: 0;
-            transform: scaleX(-1);
+            /* Sem espelhamento para câmera traseira */
+            transform: scaleX(1);
         }
 
         /* Canvas para desenhar as mãos */
@@ -343,6 +344,26 @@
             pointer-events: none;
         }
 
+        /* Botão para alternar câmera */
+        .camera-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 20;
+            border: 1px solid #00BFFF;
+            font-size: 24px;
+        }
+
         @media (max-width: 700px) {
             .clock { font-size: 45px; }
             .menu-item { width: 50px; height: 50px; font-size: 24px; }
@@ -376,7 +397,7 @@
                     <div class="voice-btn" id="voice-btn">
                         <span>🎤</span>
                     </div>
-                    <div class="search-result" id="search-result">Toque ou diga "OK Google" para pesquisar</div>
+                    <div class="search-result" id="search-result">Toque ou aponte para pesquisar</div>
                 </div>
             </div>
 
@@ -385,7 +406,7 @@
                 <div class="files-grid" id="files-grid">
                     <div class="file-card empty-placeholder" style="grid-column: 1/-1; text-align: center; padding: 40px;">
                         <span>📂</span>
-                        <div class="file-name">Arraste arquivos aqui ou use o botão abaixo</div>
+                        <div class="file-name">Arraste arquivos ou use o botão abaixo</div>
                     </div>
                 </div>
                 <div style="text-align: center; margin-top: 20px;">
@@ -415,7 +436,12 @@
         </div>
 
         <div class="gesture-guide">
-            🖐️ GESTOS: 👆 Indicador = Clique | ✌️ Pinça = Zoom | 🤚 Deslizar = Trocar área
+            🖐️ GESTOS: 👆 Indicador = Clique | ✌️ Pinça dupla = Zoom | 🤚 Deslizar = Trocar área
+        </div>
+
+        <!-- Botão para alternar câmera (frontal/traseira) -->
+        <div class="camera-toggle" id="camera-toggle">
+            🔄
         </div>
     </div>
 
@@ -426,9 +452,10 @@
         let currentDesktop = 0;
         let mediaElements = [];
         let pinchStartDistance = 0;
-        let currentZoom = 1;
+        let currentScale = 1;
         let lastHandX = null;
         let swipeThreshold = 50;
+        let currentFacingMode = 'environment'; // 'environment' = traseira, 'user' = frontal
         
         // Elementos
         const desktopContainer = document.getElementById('desktop-container');
@@ -443,6 +470,7 @@
         const searchIframe = document.getElementById('search-iframe');
         const voiceBtn = document.getElementById('voice-btn');
         const searchResult = document.getElementById('search-result');
+        const cameraToggle = document.getElementById('camera-toggle');
         
         // ========== RELÓGIO ==========
         function updateClock() {
@@ -543,7 +571,7 @@
             recognition.onerror = () => {
                 searchResult.textContent = '🎤 Não entendi. Tente novamente.';
                 setTimeout(() => {
-                    searchResult.textContent = 'Toque ou diga "OK Google" para pesquisar';
+                    searchResult.textContent = 'Aponte ou toque para pesquisar';
                 }, 2000);
             };
         }
@@ -574,32 +602,85 @@
             if (e.key === 'Enter') performSearch(searchInput.value);
         });
         
-        // ========== MEDIAPIPE HANDS ==========
-        let hands;
-        let camera;
+        // ========== FUNÇÃO PARA INICIAR CÂMERA (COM MODO TRASEIRO) ==========
+        let currentHands = null;
+        let currentCamera = null;
         
+        async function startCamera(facingMode) {
+            // Parar câmera anterior se existir
+            if (videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: facingMode } },
+                    audio: false
+                });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+                
+                // Reiniciar MediaPipe com a nova câmera
+                if (currentHands) {
+                    currentHands.close();
+                }
+                initMediaPipe();
+                
+                console.log(`📷 Câmera ${facingMode === 'environment' ? 'TRASEIRA' : 'FRONTAL'} ativada`);
+            } catch (err) {
+                console.error('Erro ao acessar câmera:', err);
+                // Tentar com facingMode padrão se falhar
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                    videoElement.srcObject = stream;
+                    await videoElement.play();
+                    initMediaPipe();
+                } catch (fallbackErr) {
+                    alert('Não foi possível acessar a câmera. Verifique as permissões.');
+                }
+            }
+        }
+        
+        // Alternar entre câmera frontal e traseira
+        cameraToggle.addEventListener('click', () => {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            startCamera(currentFacingMode);
+            
+            // Ajustar espelhamento: traseira não espelha, frontal espelha
+            if (currentFacingMode === 'user') {
+                videoElement.style.transform = 'scaleX(-1)';
+            } else {
+                videoElement.style.transform = 'scaleX(1)';
+            }
+        });
+        
+        // ========== MEDIAPIPE HANDS ==========
         function initMediaPipe() {
-            hands = new Hands({
+            currentHands = new Hands({
                 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
             });
             
-            hands.setOptions({
+            currentHands.setOptions({
                 maxNumHands: 2,
                 modelComplexity: 1,
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
             
-            hands.onResults(onHandResults);
+            currentHands.onResults(onHandResults);
             
-            camera = new Camera(videoElement, {
+            currentCamera = new Camera(videoElement, {
                 onFrame: async () => {
-                    await hands.send({ image: videoElement });
+                    await currentHands.send({ image: videoElement });
                 },
                 width: 1280,
                 height: 720
             });
-            camera.start();
+            currentCamera.start();
         }
         
         function onHandResults(results) {
@@ -625,12 +706,12 @@
                     detectTwoHandGestures(results.multiHandLandmarks);
                 }
                 
-                // Detectar swipe com uma mão (movimento horizontal)
+                // Detectar swipe com uma mão
                 if (results.multiHandLandmarks.length >= 1) {
                     detectSwipeGesture(results.multiHandLandmarks[0]);
                 }
                 
-                // Detectar clique com dedo indicador (para todos os desktops)
+                // Detectar clique com dedo indicador
                 detectIndexFingerClick(results.multiHandLandmarks);
             }
             
@@ -651,13 +732,13 @@
                 ctx.shadowColor = '#00BFFF';
             }
             
-            // Desenhar linhas (conexões básicas)
+            // Desenhar linhas (conexões)
             const connections = [
-                [0,1], [1,2], [2,3], [3,4], // polegar
-                [0,5], [5,6], [6,7], [7,8], // indicador
-                [0,9], [9,10], [10,11], [11,12], // médio
-                [0,13], [13,14], [14,15], [15,16], // anelar
-                [0,17], [17,18], [18,19], [19,20] // mínimo
+                [0,1], [1,2], [2,3], [3,4],
+                [0,5], [5,6], [6,7], [7,8],
+                [0,9], [9,10], [10,11], [11,12],
+                [0,13], [13,14], [14,15], [15,16],
+                [0,17], [17,18], [18,19], [19,20]
             ];
             
             ctx.beginPath();
@@ -685,11 +766,9 @@
                 
                 if (Math.abs(deltaX) > 0.03 && (now - lastSwipeTime) > SWIPE_COOLDOWN) {
                     if (deltaX > 0.03) {
-                        // Swipe direita -> área anterior
                         switchDesktop(currentDesktop - 1);
                         lastSwipeTime = now;
                     } else if (deltaX < -0.03) {
-                        // Swipe esquerda -> próxima área
                         switchDesktop(currentDesktop + 1);
                         lastSwipeTime = now;
                     }
@@ -699,13 +778,11 @@
         }
         
         let pinchActive = false;
-        let currentScale = 1;
         
         function detectTwoHandGestures(handsLandmarks) {
             const hand1 = handsLandmarks[0];
             const hand2 = handsLandmarks[1];
             
-            // Polegar e indicador da primeira mão
             const thumb1 = hand1[4];
             const index1 = hand1[8];
             const thumb2 = hand2[4];
@@ -714,7 +791,6 @@
             const distance1 = Math.hypot(thumb1.x - index1.x, thumb1.y - index1.y);
             const distance2 = Math.hypot(thumb2.x - index2.x, thumb2.y - index2.y);
             
-            // Pinça em ambas as mãos
             const isPinching1 = distance1 < 0.05;
             const isPinching2 = distance2 < 0.05;
             
@@ -730,7 +806,6 @@
                 } else {
                     const scaleDelta = currentDistance / pinchStartDistance;
                     if (Math.abs(scaleDelta - 1) > 0.05) {
-                        // Aplicar zoom no desktop atual
                         const newScale = Math.min(2, Math.max(0.5, currentScale * scaleDelta));
                         currentScale = newScale;
                         const currentDesktopDiv = document.querySelector(`.desktop[data-desktop="${currentDesktop}"]`);
@@ -749,22 +824,19 @@
                 const indexTip = landmarks[8];
                 const indexMcp = landmarks[5];
                 
-                // Verificar se dedo indicador está esticado
                 const isExtended = indexTip.y < indexMcp.y;
                 
                 if (isExtended) {
                     const x = indexTip.x * window.innerWidth;
                     const y = indexTip.y * window.innerHeight;
                     
-                    // Encontrar elementos clicáveis
-                    const clickableElements = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn');
+                    const clickableElements = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn, .camera-toggle');
                     
                     for (let element of clickableElements) {
                         const rect = element.getBoundingClientRect();
                         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
                             element.classList.add('hand-hover');
                             
-                            // Simular clique se hover por mais de 300ms
                             if (!element.hasAttribute('data-hover-start')) {
                                 element.setAttribute('data-hover-start', Date.now());
                             } else {
@@ -783,23 +855,8 @@
             }
         }
         
-        // Inicializar câmera e MediaPipe
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
-                    audio: false
-                });
-                videoElement.srcObject = stream;
-                await videoElement.play();
-                initMediaPipe();
-            } catch (err) {
-                console.error('Erro na câmera:', err);
-                alert('Permita o acesso à câmera para usar os gestos');
-            }
-        }
-        
-        startCamera();
+        // Iniciar com câmera TRASEIRA (environment)
+        startCamera('environment');
         
         // Redimensionar canvas
         window.addEventListener('resize', () => {
@@ -807,8 +864,8 @@
             handCanvas.height = window.innerHeight;
         });
         
-        console.log('🚀 Sistema HUD por Gestos Ativado!');
-        console.log('Gestos: 👆 Indicador esticado = clique | ✌️ Pinça dupla = zoom | 🤚 Deslizar = trocar área');
+        console.log('🚀 Sistema HUD com CÂMERA TRASEIRA ativado!');
+        console.log('Gestos: 👆 Indicador = clique | ✌️ Pinça dupla = zoom | 🤚 Deslizar = trocar área');
     </script>
 </body>
 </html>
