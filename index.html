@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MR Spatial OS</title>
+    <title>MR Spatial OS v3</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -16,40 +16,17 @@
         <video id="webcam" autoplay playsinline></video>
         <canvas id="output_canvas"></canvas>
 
-        <div class="spatial-reticle"><div class="reticle-core"></div></div>
-
-        <div id="workspace-overlay-toast">WORKSPACE HOME</div>
-
-        <header class="hud-top-panel glass-card">
-            <div id="os-status-indicator">SYSTEM ONLINE</div>
-            <div class="hud-v-divider"></div>
-            <button class="hud-btn" id="global-menu-btn">☰</button>
-            <button class="hud-btn" id="global-vr-btn">🥽</button>
-            <button class="hud-btn" id="global-config-btn">⋮</button>
-        </header>
+        <div id="workspace-overlay-toast">SISTEMA INICIALIZADO</div>
 
         <main id="workspace-viewport" class="workspace-animate-fade">
             </main>
 
-        <aside class="hud-right-slider glass-card spatial-tilt-right" id="vertical-master-slider">
-            <button class="slider-inc-btn">＋</button>
-            <div class="v-track"><div class="v-bar-fill" id="master-slider-fill" style="height: 50%;"></div></div>
-            <button class="slider-dec-btn">－</button>
-        </aside>
-
         <footer class="hud-bottom-dock glass-card">
-            <button class="dock-btn-round" id="dock-back" title="Voltar Workspace">↩</button>
-            <button class="dock-btn-round" id="dock-prev" title="Anterior">⏮</button>
-            <button class="dock-btn-main" id="dock-center-action" title="Ação Principal">
-                <div class="main-core"></div>
-            </button>
-            <button class="dock-btn-round" id="dock-next" title="Próximo">⏭</button>
-            <button class="dock-btn-round" id="dock-refresh" title="Reiniciar Sistema">↻</button>
+            <button class="dock-btn-round" onclick="navigateWorkspace(-1)">⏮</button>
+            <button class="dock-btn-main" onclick="loadWorkspace('home')"><div class="main-core"></div></button>
+            <button class="dock-btn-round" onclick="navigateWorkspace(1)">⏭</button>
         </footer>
     </div>
-
-    <input type="file" id="system-file-picker" accept="image/*,video/*,application/pdf" multiple>
-    <audio id="spatial-audio-node" style="display:none;"></audio>
 
     <script src="app.js"></script>
 </body>
