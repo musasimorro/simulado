@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR MR Spatial Suite - Ultimate Interface</title>
+    <title>VR MR Spatial Suite - Barra Unificada</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -50,7 +50,7 @@
             z-index: 3;
             font-weight: bold;
             border: 1px solid #00FF00;
-            font-size: 14px;
+            font-size: 13px;
         }
         #file_input { display: none; }
     </style>
@@ -93,24 +93,20 @@
             const w = canvasElement.width;
             const h = canvasElement.height;
             
-            // LIXEIRA: Superior Esquerda
-            trashBtn = { x: 60, y: 70, radius: 35 };
+            // LIXEIRA: Mantida no Canto Superior Esquerdo
+            trashBtn = { x: 55, y: 65, radius: 30 };
 
-            // BOTÃO ABRIR ARQUIVOS: Mais alto, na lateral direita superior
-            uploadBtn = { x: w - 160, y: 50, w: 130, h: 50, active: false };
+            // MENU UNIFICADO NA PARTE INFERIOR (Tudo junto e compacto)
+            // Botão de Abrir Arquivos centralizado logo acima dos controles de mídia
+            uploadBtn = { x: w/2 - 55, y: h - 135, w: 110, h: 38, active: false };
 
-            // BOTÕES ESPACIAIS SEPARADOS NAS LATERAIS
+            // Barra de ferramentas horizontal compacta com todos os botões juntos
             buttons = [
-                // ZOOM DO LADO ESQUERDO (Abaixo da lixeira)
-                { id: 'zin', label: 'ZOOM +', x: 20, y: 150, w: 90, h: 50, active: false },
-                { id: 'zout', label: 'ZOOM -', x: 20, y: 220, w: 90, h: 50, active: false },
-
-                // VOLUME DO LADO DIREITO
-                { id: 'vup', label: 'VOL +', x: w - 110, y: 150, w: 90, h: 50, active: false },
-                { id: 'vdown', label: 'VOL -', x: w - 110, y: 220, w: 90, h: 50, active: false },
-
-                // PLAY/PAUSE CENTRALIZADO ABAIXO DA MÍDIA
-                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 60, y: h - 90, w: 120, h: 50, active: false }
+                { id: 'zin', label: 'ZOOM +', x: w/2 - 195, y: h - 85, w: 72, h: 38, active: false },
+                { id: 'zout', label: 'ZOOM -', x: w/2 - 118, y: h - 85, w: 72, h: 38, active: false },
+                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 41, y: h - 85, w: 82, h: 38, active: false },
+                { id: 'vup', label: 'VOL +', x: w/2 + 46, y: h - 85, w: 72, h: 38, active: false },
+                { id: 'vdown', label: 'VOL -', x: w/2 + 123, y: h - 85, w: 72, h: 38, active: false }
             ];
         }
 
@@ -132,7 +128,7 @@
                 mediaType = 'video';
                 hiddenImg.src = "";
                 hiddenVideo.src = fileURL;
-                hiddenVideo.play().catch(err => console.log("Aguardando interação"));
+                hiddenVideo.play().catch(err => console.log("Aguardando ativação"));
                 hiddenVideo.volume = 0.5;
             } else {
                 mediaType = 'image';
@@ -140,8 +136,8 @@
                 hiddenVideo.src = "";
                 hiddenImg.src = fileURL;
             }
-            mediaX = canvasElement.width / 2 - 120;
-            mediaY = canvasElement.height / 2 - 120;
+            mediaX = canvasElement.width / 2 - 100;
+            mediaY = canvasElement.height / 2 - 100;
         });
 
         function getDistance(p1, p2) {
@@ -149,33 +145,33 @@
         }
 
         function drawInterface() {
-            // Desenha Botão Abrir Arquivo (Sempre visível)
+            // Desenha Botão Abrir Arquivo (Alinhado ao centro inferior)
             canvasCtx.fillStyle = uploadBtn.active ? 'rgba(0, 123, 255, 1)' : 'rgba(0, 123, 255, 0.75)';
             canvasCtx.strokeStyle = '#FFFFFF';
-            canvasCtx.lineWidth = 2;
+            canvasCtx.lineWidth = 1.5;
             canvasCtx.beginPath();
-            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 25);
+            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 15);
             canvasCtx.fill();
             canvasCtx.stroke();
 
             canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.font = 'bold 12px sans-serif';
+            canvasCtx.font = 'bold 10px sans-serif';
             canvasCtx.textAlign = 'center';
             canvasCtx.textBaseline = 'middle';
             canvasCtx.fillText('ABRIR MÍDIA 📂', uploadBtn.x + uploadBtn.w/2, uploadBtn.y + uploadBtn.h/2);
 
-            // Desenha Lixeira (Sempre visível)
+            // Desenha Lixeira
             canvasCtx.save();
             canvasCtx.beginPath();
             canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
             canvasCtx.fillStyle = overTrash ? 'rgba(255, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.6)';
             canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#FF3333';
-            canvasCtx.lineWidth = overTrash ? 4 : 2;
+            canvasCtx.lineWidth = overTrash ? 3.5 : 1.5;
             canvasCtx.fill();
             canvasCtx.stroke();
 
             canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.font = '26px sans-serif';
+            canvasCtx.font = '22px sans-serif';
             canvasCtx.textAlign = 'center';
             canvasCtx.textBaseline = 'middle';
             canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
@@ -183,21 +179,21 @@
 
             if (!mediaType) return;
 
-            // Desenha Botões Laterais (Volume e Zoom) e Controle Inferior
+            // Desenha os botões de controle unificados na barra inferior
             buttons.forEach(btn => {
                 if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
 
                 canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.9)' : 'rgba(0, 0, 0, 0.75)';
                 canvasCtx.strokeStyle = '#00FF00';
-                canvasCtx.lineWidth = 2;
+                canvasCtx.lineWidth = 1.5;
                 
                 canvasCtx.beginPath();
-                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 8);
                 canvasCtx.fill();
                 canvasCtx.stroke();
 
                 canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
-                canvasCtx.font = 'bold 12px sans-serif';
+                canvasCtx.font = 'bold 10px sans-serif';
                 canvasCtx.textAlign = 'center';
                 canvasCtx.textBaseline = 'middle';
                 canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
@@ -227,7 +223,7 @@
                 let mediaCenterY = mediaY + (displayH / 2);
                 let distToTrash = Math.sqrt(Math.pow(mediaCenterX - trashBtn.x, 2) + Math.pow(mediaCenterY - trashBtn.y, 2));
                 
-                if (distToTrash < trashBtn.radius + 50) {
+                if (distToTrash < trashBtn.radius + 40) {
                     overTrash = true;
                 }
 
@@ -237,7 +233,7 @@
                 
                 if (isDragging) {
                     canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#00FF00';
-                    canvasCtx.lineWidth = overTrash ? 5 : 3;
+                    canvasCtx.lineWidth = overTrash ? 4 : 2;
                     canvasCtx.strokeRect(mediaX, mediaY, displayW, displayH);
                 }
                 canvasCtx.restore();
@@ -247,32 +243,32 @@
                 statusDiv.innerText = "Modo MR Ativo";
                 const landmarks = results.multiHandLandmarks[0];
 
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 3});
-                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 4});
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2.5});
+                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
 
                 const thumbTip = landmarks[4];
                 const indexTip = landmarks[8];
 
-                // 1. Ponto de Interação A: Ponto médio da PINÇA
+                // Ponto A: Coordenadas de Pinça
                 const pinchX = ((thumbTip.x + indexTip.x) / 2) * canvasElement.width;
                 const pinchY = ((thumbTip.y + indexTip.y) / 2) * canvasElement.height;
                 const isPinching = getDistance(thumbTip, indexTip) < 0.055;
 
-                // 2. Ponto de Interação B: APONTAR COM INDICADOR (Coordenada real da ponta do indicador)
+                // Ponto B: Coordenadas de Apontar (ponta do indicador)
                 const pointerX = indexTip.x * canvasElement.width;
                 const pointerY = indexTip.y * canvasElement.height;
                 
-                // Determina qual ponto usar baseado na intenção do usuário
+                // Escolhe a mira com base no gesto executado
                 let targetX = isPinching ? pinchX : pointerX;
                 let targetY = isPinching ? pinchY : pointerY;
 
                 const now = Date.now();
                 let hitButton = false;
 
-                // Executa colisão para os botões virtuais (Aceita Pinça OU Apontar com Indicador)
-                if (isPinching || (getDistance(thumbTip, indexTip) > 0.09)) { 
+                // Aceita interações nos botões tanto por pinça quanto apontando com o indicador
+                if (isPinching || (getDistance(thumbTip, indexTip) > 0.08)) { 
                     
-                    // Verificação do Botão de Upload
+                    // Colisão com o botão de carregar mídia
                     if (targetX >= uploadBtn.x && targetX <= uploadBtn.x + uploadBtn.w && targetY >= uploadBtn.y && targetY <= uploadBtn.y + uploadBtn.h) {
                         uploadBtn.active = true;
                         hitButton = true;
@@ -282,7 +278,7 @@
                         }
                     }
 
-                    // Verificação dos botões de Controle
+                    // Colisão com a lista de botões da barra inferior unificada
                     buttons.forEach(btn => {
                         if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
                         
@@ -308,7 +304,7 @@
                     });
                 }
 
-                // Arrastar mídia apenas usando o gesto de PINÇA tradicional
+                // Movimentação do arquivo pela tela (Restrito apenas ao gesto de PINÇA)
                 if (isPinching && !hitButton && mediaType) {
                     isDragging = true;
                     mediaX = pinchX - (displayW / 2);
@@ -337,8 +333,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
         });
 
         hands.onResults(onResults);
