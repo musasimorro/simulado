@@ -1,5 +1,5 @@
 // ==========================================================================
-// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (TOTAL INTEGRATION v3.3)
+// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (TOTAL INTEGRATION v4.0)
 // ==========================================================================
 
 const videoElement = document.getElementById('webcam');
@@ -11,7 +11,7 @@ const systemViewport = document.getElementById('workspace-viewport');
 const workspaces = ['home', 'files', 'search'];
 let currentWorkspaceIndex = 0;
 let currentWorkspace = "home";
-let fileSystemHandle = null; // Guardará o acesso autorizado à pasta de arquivos
+let fileSystemHandle = null; 
 
 // 2. ESTADO DE NAVEGAÇÃO / SWIPE POR MOVIMENTO LATERAL (PULSO)
 let lastHandX = null;
@@ -30,15 +30,26 @@ let initialScale = 1.0;
 let globalZoomScale = 1.0; 
 
 /**
- * MÓDULO DE PERMISSÕES CRÍTICAS DO SISTEMA OPERACIONAL
+ * MÓDULO DE INICIALIZAÇÃO DA CÂMERA (CORRIGIDO)
  */
 async function requestOSPermissions() {
     showOSToast("A INICIALIZAR ECOSSISTEMA...");
 
-    // Força o pedido de hardware da câmara em tempo real
+    // SEGURANÇA: Limpa fluxos anteriores para evitar que a câmera trave ocupada
+    if (videoElement && videoElement.srcObject) {
+        const stream = videoElement.srcObject;
+        const tracks = stream.getTracks();
+        tracks.forEach(track => track.stop());
+        videoElement.srcObject = null;
+    }
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: 1280, height: 720 },
+            video: { 
+                facingMode: "environment", // Ativa a câmera traseira do telemóvel
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
             audio: false 
         });
         
@@ -60,17 +71,16 @@ async function requestOSPermissions() {
         camera.start();
         showOSToast("CÂMARA MESTRE ONLINE");
     } catch (err) {
-        console.error("Permissão de hardware negada:", err);
-        showOSToast("ERRO: CAMERA BLOQUEADA");
-        alert("Acesso negado. Ative a câmara nas definições de segurança do seu navegador para rodar o MR OS.");
+        console.error("Erro na câmara:", err);
+        showOSToast("ERRO: CÂMARA BLOQUEADA");
     }
 
-    // Carrega o espaço inicial
+    // Carrega o espaço inicial (Home)
     loadWorkspace("home");
 }
 
 /**
- * Pedido de Autorização e Acesso ao Sistema de Arquivos (Ativado pelo botão)
+ * REQUISIÇÃO DE ARQUIVOS LOCAL DO DISPOSITIVO
  */
 async function requestFilePermission() {
     if ('showDirectoryPicker' in window) {
@@ -78,7 +88,6 @@ async function requestFilePermission() {
             fileSystemHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
             showOSToast("PASTA LOCAL VINCULADA");
         } catch (err) {
-            console.log("Utilizador optou por seleção isolada ou cancelou:", err);
             fallbackFileSelector();
         }
     } else {
@@ -91,21 +100,19 @@ function fallbackFileSelector() {
     fileInput.type = 'file';
     fileInput.multiple = true;
     fileInput.style.display = 'none';
-    
     fileInput.onchange = (e) => {
-        const files = e.target.files;
-        showOSToast(`${files.length} ARQUIVOS DETETADOS`);
+        showOSToast(`${e.target.files.length} ARQUIVOS DETETADOS`);
     };
-    
     document.body.appendChild(fileInput);
     fileInput.click();
     document.body.removeChild(fileInput);
 }
 
 /**
- * CALBACK DO PIPELINE MEDIAPE: PROCESSAMENTO ANALÍTICO DOS GESTOS
+ * LOOP PRINCIPAL: PROCESSAMENTO ANALÍTICO DOS 3 GESTOS ESPACIAIS
  */
 function onResults(results) {
+    // Desenha o feed de vídeo e as conexões da mão no canvas de fundo
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
@@ -116,7 +123,7 @@ function onResults(results) {
         results.multiHandLandmarks.forEach((landmarks, index) => {
             const label = results.multiHandedness[index].label; 
             
-            // Renderização das conexões holográficas azuis do HUD nas mãos
+            // Renderiza o esqueleto holográfico azul nas tuas mãos
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.4)', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 1, radius: 2});
 
@@ -125,15 +132,12 @@ function onResults(results) {
         });
     }
 
-    // [RETIDO] MECÂNICA 1: PINCH ZOOM DE DUAS MÃOS SIMULTÂNEO
+    // MECÂNICA 1: ZOOM COM A PINÇA DAS DUAS MÃOS SIMULTÂNEAS
     if (leftHandLandmarks && rightHandLandmarks) {
         const leftPinchDist = getDistance3D(leftHandLandmarks[4], leftHandLandmarks[8]);
         const rightPinchDist = getDistance3D(rightHandLandmarks[4], rightHandLandmarks[8]);
         
-        const leftIsPinching = leftPinchDist < 0.055;
-        const rightIsPinching = rightPinchDist < 0.055;
-
-        if (leftIsPinching && rightIsPinching) {
+        if (leftPinchDist < 0.055 && rightPinchDist < 0.055) {
             const leftCenter = leftHandLandmarks[8];
             const rightCenter = rightHandLandmarks[8];
             const currentHandDistance = Math.hypot(leftCenter.x - rightCenter.x, leftCenter.y - rightCenter.y);
@@ -142,36 +146,35 @@ function onResults(results) {
                 isZoomingMode = true;
                 initialPinchDistance = currentHandDistance;
                 initialScale = globalZoomScale;
-                showOSToast("ZOOM MANUAL EM CURSO");
             } else {
                 const zoomFactor = currentHandDistance / initialPinchDistance;
                 globalZoomScale = Math.min(2.5, Math.max(0.5, initialScale * zoomFactor));
                 applyGlobalZoomUI(globalZoomScale);
             }
-            return; 
+            return; // Bloqueia outras interações durante o Zoom global
         }
     }
     
     if (isZoomingMode) {
         isZoomingMode = false;
-        showOSToast(`ZOOM GRAVADO: ${Math.round(globalZoomScale * 100)}%`);
+        showOSToast(`ZOOM FIXADO: ${Math.round(globalZoomScale * 100)}%`);
     }
 
-    // [RETIDO] MECÂNICA 2 & 3: CURSOR, CLIQUE E SWIPE (MÃO DIREITA)
+    // MECÂNICA 2 & 3: SWIPE DE WORKSPACE E CURSOR COM DEDO INDICADOR (MÃO DIREITA)
     if (rightHandLandmarks) {
         const thumbTip = rightHandLandmarks[4];
         const indexTip = rightHandLandmarks[8];
         const wrist = rightHandLandmarks[0];
 
-        // Atualiza a transição por swipe monitorizando o pulso
+        // Mecânica 2: Troca de workspace monitorizando a posição horizontal do pulso
         handleWorkspaceSwipe(wrist.x);
 
-        // Movimentação livre do ponteiro virtual
+        // Mecânica 3: Movimentação do ponteiro virtual pelo indicador direito
         const cursorX = window.innerWidth * (1 - indexTip.x);
         const cursorY = window.innerHeight * indexTip.y;
         updateVirtualCursor(cursorX, cursorY);
 
-        // Gatilho do clique virtual ao fechar pinça
+        // Deteta gesto de pinça rápida para clique virtual
         const rightPinchDist = getDistance3D(thumbTip, indexTip);
         if (rightPinchDist < 0.055) {
             if (!isPinchedRight) {
@@ -188,17 +191,17 @@ function onResults(results) {
 }
 
 /**
- * GESTÃO DE TRANSIÇÃO LATERAL DE ECOSSISTEMAS (SWIPE)
+ * GESTÃO DO MOVE LATERAL (SWIPE DE WORKSPACES)
  */
 function handleWorkspaceSwipe(currentX) {
     if (swipeCooldown) return;
     if (lastHandX !== null) {
         const deltaX = currentX - lastHandX;
         if (deltaX > swipeThreshold) { 
-            navigateWorkspace(-1); // Swipe para a Direita -> Workspace Anterior
+            navigateWorkspace(-1); // Mão para a direita -> Volta ecrã
             triggerSwipeCooldown();
         } else if (deltaX < -swipeThreshold) { 
-            navigateWorkspace(1);  // Swipe para a Esquerda -> Próximo Workspace
+            navigateWorkspace(1);  // Mão para a esquerda -> Avança ecrã
             triggerSwipeCooldown();
         }
     }
@@ -208,7 +211,7 @@ function handleWorkspaceSwipe(currentX) {
 function triggerSwipeCooldown() {
     swipeCooldown = true;
     lastHandX = null;
-    setTimeout(() => { swipeCooldown = false; }, 1000);
+    setTimeout(() => { swipeCooldown = false; }, 1000); // 1 segundo de espera
 }
 
 function navigateWorkspace(direction) {
@@ -217,7 +220,7 @@ function navigateWorkspace(direction) {
 }
 
 /**
- * COMPUTAÇÃO DA ESCALA VISUAL DO SISTEMA
+ * APLICAÇÃO DO ZOOM VISUAL NO CSS
  */
 function applyGlobalZoomUI(scale) {
     const uiContainer = document.querySelector('.spatial-hud-wrapper');
@@ -231,7 +234,7 @@ function applyGlobalZoomUI(scale) {
 }
 
 /**
- * DETEÇÃO E PROCESSAMENTO DE COLISÃO DO CURSOR COM ELEMENTOS HTML
+ * PROCESSAMENTO DE CLIQUE NOS BOTÕES AZUIS
  */
 function handleVirtualClick(x, y) {
     const currentTime = Date.now();
@@ -258,12 +261,19 @@ function updateVirtualCursor(x, y) {
     if (!pointer) {
         pointer = document.createElement('div');
         pointer.id = 'spatial-pointer';
+        // Criação de estilo rápido inline para o ponteiro
+        pointer.style.position = 'fixed';
+        pointer.style.width = '15px';
+        pointer.style.height = '15px';
+        pointer.style.background = 'cyan';
+        pointer.style.borderRadius = '50%';
+        pointer.style.zIndex = '9999';
+        pointer.style.pointerEvents = 'none';
+        pointer.style.boxShadow = '0 0 10px #00bfff';
         document.body.appendChild(pointer);
     }
     pointer.style.left = `${x}px`;
     pointer.style.top = `${y}px`;
-    if (isPinchedRight) pointer.classList.add('clicking');
-    else pointer.classList.remove('clicking');
 }
 
 function removeVirtualCursor() {
@@ -276,24 +286,24 @@ function getDistance3D(p1, p2) {
 }
 
 /**
- * COMPILADOR DOS TRÊS ESPAÇOS DE TRABALHO SOLICITADOS (INJEÇÃO DINÂMICA)
+ * INJEÇÃO DINÂMICA DOS 3 WORKSPACES SOLICITADOS
  */
 function loadWorkspace(targetWS) {
     currentWorkspace = targetWS;
     showOSToast(`SISTEMA: ${targetWS.toUpperCase()}`);
 
-    // Cria a casca estrutural base do teu design visionOS futurista azul transparente
     let innerContent = "";
 
+    // WORKSPACE 1: HOME (Painéis Azuis, Controle de Volume, Zoom e Lixeira)
     if (targetWS === "home") {
         innerContent = `
             <div class="hud-side-panel" style="display:flex; flex-direction:column; gap:20px; width:220px;">
-                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff; box-shadow:0 0 20px rgba(0,191,255,0.2);">
+                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff;">
                     <div style="font-size:12px; color:#00bfff; letter-spacing:2px; margin-bottom:10px;">VOLUME</div>
                     <input type="range" style="width:100%; accent-color:#00bfff;">
                 </div>
 
-                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff; box-shadow:0 0 20px rgba(0,191,255,0.2);">
+                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff;">
                     <div style="font-size:12px; color:#00bfff; letter-spacing:2px; margin-bottom:5px;">ZOOM METRIC</div>
                     <div id="dynamic-zoom-percentage" style="font-size:32px; font-weight:bold; color:#fff;">100%</div>
                 </div>
@@ -308,7 +318,7 @@ function loadWorkspace(targetWS) {
                 <div style="width:8px; height:8px; background:#00bfff; border-radius:50%;"></div>
             </div>
 
-            <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:30px; width:60px; height:350px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:20px 0; box-shadow:0 0 25px rgba(0,191,255,0.25);">
+            <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:30px; width:60px; height:350px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:20px 0;">
                 <div style="color:#00bfff; font-weight:bold; font-size:20px;">+</div>
                 <div style="width:6px; height:180px; background:rgba(255,255,255,0.1); border-radius:3px; position:relative;">
                     <div style="position:absolute; bottom:0; width:100%; height:50%; background:#00bfff; border-radius:3px;"></div>
@@ -317,29 +327,30 @@ function loadWorkspace(targetWS) {
             </div>
         `;
     } 
+    // WORKSPACE 2: ARQUIVOS / CONCENTRADOR DE MÍDIA
     else if (targetWS === "files") {
         innerContent = `
-            <div class="hud-card" style="width:100%; height:300px; background:rgba(10,25,50,0.6); backdrop-filter:blur(20px); border:2px dashed #00bfff; border-radius:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff;">
+            <div class="hud-card" style="width:100%; height:300px; background:rgba(10,25,50,0.6); backdrop-filter:blur(20px); border:2px dashed #00bfff; border-radius:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; padding:20px;">
                 <span style="font-size:48px; margin-bottom:15px;">📥</span>
-                <div style="font-size:16px; letter-spacing:1px; color:#00bfff; font-weight:bold; margin-bottom:5px;">CONCENTRADOR DE MÍDIA</div>
-                <p style="font-size:12px; color:rgba(255,255,255,0.6);">Faça o gesto de clique no botão para autorizar arquivos</p>
-                <button class="action-btn" onclick="requestFilePermission()" style="margin-top:15px; background:#00bfff; color:#0a1932; border:none; padding:10px 25px; border-radius:12px; font-weight:bold; cursor:pointer;">ESCOLHER DIRETÓRIO</button>
+                <div style="font-size:16px; letter-spacing:1px; color:#00bfff; font-weight:bold;">CONCENTRADOR DE MÍDIA</div>
+                <button class="action-btn" onclick="requestFilePermission()" style="margin-top:20px; background:#00bfff; color:#0a1932; border:none; padding:10px 25px; border-radius:12px; font-weight:bold; cursor:pointer;">SELECIONAR DIRETÓRIO</button>
             </div>
         `;
     }
+    // WORKSPACE 3: PESQUISA (Navegador Embutido)
     else if (targetWS === "search") {
         innerContent = `
             <div class="hud-card" style="width:100%; height:400px; background:rgba(10,25,50,0.6); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; display:flex; flex-direction:column; overflow:hidden;">
                 <div style="display:flex; padding:12px; gap:10px; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(0,191,255,0.3);">
                     <input type="text" id="spatial-search-input" value="https://www.google.com/search?igu=1" style="flex-grow:1; background:rgba(255,255,255,0.1); border:1px solid #00bfff; border-radius:8px; padding:8px; color:#fff; outline:none;">
-                    <button class="action-btn" onclick="executeSpatialSearch()" style="background:#00bfff; border:none; padding:0 20px; border-radius:8px; font-weight:bold; cursor:pointer;">IR</button>
+                    <button class="action-btn" onclick="executeSpatialSearch()" style="background:#00bfff; border:none; padding:0 20px; border-radius:8px; font-weight:bold; cursor:pointer;">BUSCAR</button>
                 </div>
                 <iframe id="spatial-iframe" src="https://www.google.com/search?igu=1" style="width:100%; flex-grow:1; border:none; background:#fff;"></iframe>
             </div>
         `;
     }
 
-    // Injeta mantendo a estrutura wrapper e reaplica a escala global ativa
+    // Aplica o HTML e mantém o nível de zoom ativo
     systemViewport.innerHTML = `<div class="spatial-hud-wrapper" style="width:90%; height:90%; display:flex; justify-content:space-between; align-items:center; position:relative; transition: transform 0.1s ease-out;">${innerContent}</div>`;
     applyGlobalZoomUI(globalZoomScale);
 }
@@ -361,12 +372,12 @@ function showOSToast(text) {
     }
 }
 
-// CONFIGURAÇÃO DO PIPELINE MEDIA PIPE HANDS
+// CONFIGURAÇÃO DO PIPELINE DO GOOGLE MEDIAPIPE
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.60, minTrackingConfidence: 0.60 });
 hands.onResults(onResults);
 
-// CICLO DE VIDA DO ECOSSISTEMA
+// CICLO DE VIDA DO ARRANQUE
 window.addEventListener('DOMContentLoaded', () => {
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
