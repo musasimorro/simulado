@@ -33,7 +33,8 @@
             height: 100%;
             object-fit: cover;
             z-index: 0;
-            transform: scaleX(-1);
+            /* SEM ESPELHAMENTO - imagem normal */
+            transform: scaleX(1);
         }
 
         #hand-canvas {
@@ -409,16 +410,16 @@
         let hands = null;
         let cameraProcessor = null;
         
-        // Variáveis para swipe (deslizar) - ajustadas para menos sensibilidade
+        // Variáveis para swipe
         let handPositionHistory = [];
         let lastSwipeTime = 0;
-        const SWIPE_COOLDOWN = 800; // ms entre trocas
-        const SWIPE_THRESHOLD = 0.08; // Quanto precisa deslizar (aumentado de 0.04 para 0.08)
+        const SWIPE_COOLDOWN = 800;
+        const SWIPE_THRESHOLD = 0.08;
         
         // Variáveis para clique
         let hoverStartTime = null;
         let currentHoverElement = null;
-        const CLICK_HOLD_TIME = 400; // ms para confirmar clique
+        const CLICK_HOLD_TIME = 400;
 
         // Elementos
         const desktopContainer = document.getElementById('desktop-container');
@@ -433,7 +434,6 @@
         const voiceBtn = document.getElementById('voice-btn');
         const searchResult = document.getElementById('search-result');
 
-        // ========== FUNÇÃO DE STATUS ==========
         function updateStatus(msg) {
             if (statusBar) statusBar.textContent = msg;
             console.log(msg);
@@ -538,7 +538,7 @@
             }
         });
 
-        // ========== CÂMERA ==========
+        // ========== CÂMARA (SEM ESPELHAMENTO) ==========
         async function startCamera() {
             updateStatus('📷 Solicitando câmera...');
             
@@ -550,6 +550,8 @@
                 currentStream = stream;
                 videoElement.srcObject = stream;
                 videoElement.style.display = 'block';
+                // IMPORTANTE: SEM transformação de espelho
+                videoElement.style.transform = 'scaleX(1)';
                 await videoElement.play();
                 
                 updateStatus('📸 Câmera Frontal ATIVA | Aponte o dedo');
@@ -562,47 +564,40 @@
             }
         }
 
-        // ========== DETECÇÃO DE SWIPE MELHORADA ==========
+        // ========== DETECÇÃO DE SWIPE ==========
         function detectSwipe(currentX) {
-            // Adicionar posição ao histórico
             handPositionHistory.push({ x: currentX, time: Date.now() });
             
-            // Manter apenas últimos 500ms
             while (handPositionHistory.length > 0 && Date.now() - handPositionHistory[0].time > 500) {
                 handPositionHistory.shift();
             }
             
             if (handPositionHistory.length < 5) return;
             
-            // Calcular movimento total
             const startX = handPositionHistory[0].x;
             const endX = handPositionHistory[handPositionHistory.length - 1].x;
             const deltaX = endX - startX;
             const timeSpan = handPositionHistory[handPositionHistory.length - 1].time - handPositionHistory[0].time;
             
-            // Verificar se é um swipe rápido e distante
             const isFastSwipe = timeSpan < 300;
             const isLongSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD;
             
             if (isFastSwipe && isLongSwipe && (Date.now() - lastSwipeTime) > SWIPE_COOLDOWN) {
                 if (deltaX > 0) {
-                    // Swipe para direita -> área anterior
                     switchDesktop(currentDesktop - 1);
                 } else {
-                    // Swipe para esquerda -> próxima área
                     switchDesktop(currentDesktop + 1);
                 }
                 lastSwipeTime = Date.now();
-                handPositionHistory = []; // Reset após swipe
+                handPositionHistory = [];
             }
         }
 
-        // ========== DETECÇÃO DE CLIQUE MELHORADA ==========
+        // ========== DETECÇÃO DE CLIQUE ==========
         let lastIndexTipPosition = null;
         
         function detectClick(indexTipX, indexTipY, isIndexExtended) {
             if (!isIndexExtended) {
-                // Dedo não está apontando, cancelar hover
                 if (currentHoverElement) {
                     currentHoverElement.classList.remove('hand-hover');
                     currentHoverElement = null;
@@ -612,11 +607,9 @@
                 return;
             }
             
-            // Verificar se o dedo está parado (para evitar cliques acidentais)
             if (lastIndexTipPosition) {
                 const moved = Math.hypot(indexTipX - lastIndexTipPosition.x, indexTipY - lastIndexTipPosition.y);
                 if (moved > 15) {
-                    // Dedo se moveu, resetar hover
                     if (currentHoverElement) {
                         currentHoverElement.classList.remove('hand-hover');
                         currentHoverElement = null;
@@ -626,7 +619,6 @@
             }
             lastIndexTipPosition = { x: indexTipX, y: indexTipY };
             
-            // Encontrar elemento sob o dedo
             const clickableElements = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn');
             let elementUnderFinger = null;
             
@@ -638,7 +630,6 @@
                 }
             }
             
-            // Se mudou de elemento, resetar
             if (currentHoverElement !== elementUnderFinger) {
                 if (currentHoverElement) {
                     currentHoverElement.classList.remove('hand-hover');
@@ -650,16 +641,13 @@
                 }
             }
             
-            // Se está no mesmo elemento há tempo suficiente, clicar
             if (currentHoverElement && hoverStartTime && (Date.now() - hoverStartTime) > CLICK_HOLD_TIME) {
                 currentHoverElement.click();
-                // Feedback visual rápido
                 currentHoverElement.style.transform = 'scale(0.95)';
                 setTimeout(() => {
                     if (currentHoverElement) currentHoverElement.style.transform = '';
                 }, 100);
                 
-                // Reset para não clicar várias vezes
                 hoverStartTime = null;
                 currentHoverElement.classList.remove('hand-hover');
                 currentHoverElement = null;
@@ -705,11 +693,9 @@
                 const landmarks = results.multiHandLandmarks[0];
                 drawHand(landmarks);
                 
-                // Pegar posição da palma da mão (ponto 0) para swipe
                 const palmX = landmarks[0].x;
                 detectSwipe(palmX);
                 
-                // Pegar ponta do dedo indicador (ponto 8) para clique
                 const indexTip = landmarks[8];
                 const indexMcp = landmarks[5];
                 const isIndexExtended = indexTip.y < indexMcp.y;
@@ -718,7 +704,6 @@
                 
                 detectClick(tipX, tipY, isIndexExtended);
             } else {
-                // Nenhuma mão detectada, resetar estados
                 if (currentHoverElement) {
                     currentHoverElement.classList.remove('hand-hover');
                     currentHoverElement = null;
@@ -773,7 +758,7 @@
         }
 
         init();
-        console.log('🚀 HUD Iniciado! Gestos: Deslize RÁPIDO para trocar tela | Aponte para clicar');
+        console.log('🚀 HUD Iniciado! Imagem sem espelhamento - gestos corretos!');
     </script>
 </body>
 </html>
