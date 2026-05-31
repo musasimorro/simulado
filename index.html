@@ -162,6 +162,12 @@
             transition: all 0.2s;
         }
 
+        .file-card.hand-hover {
+            transform: scale(1.05);
+            border-color: #00BFFF;
+            box-shadow: 0 0 20px rgba(0,191,255,0.5);
+        }
+
         .file-card span:first-child {
             font-size: 40px;
             display: block;
@@ -384,7 +390,7 @@
         </div>
 
         <div class="gesture-guide">
-            🖐️ GESTOS: 👆 Indicador = Clique | ✌️ Pinça dupla = Zoom | 🤚 Deslizar = Trocar área
+            🖐️ GESTOS: 👆 Indicador (apontar) = Clique | 🤚 Deslizar RÁPIDO = Trocar área
         </div>
 
         <div class="status-bar" id="status-bar">🟢 INICIANDO...</div>
@@ -402,11 +408,17 @@
         let currentStream = null;
         let hands = null;
         let cameraProcessor = null;
-        let lastHandX = null;
+        
+        // Variáveis para swipe (deslizar) - ajustadas para menos sensibilidade
+        let handPositionHistory = [];
         let lastSwipeTime = 0;
-        let pinchActive = false;
-        let pinchStartDistance = 0;
-        let currentScale = 1;
+        const SWIPE_COOLDOWN = 800; // ms entre trocas
+        const SWIPE_THRESHOLD = 0.08; // Quanto precisa deslizar (aumentado de 0.04 para 0.08)
+        
+        // Variáveis para clique
+        let hoverStartTime = null;
+        let currentHoverElement = null;
+        const CLICK_HOLD_TIME = 400; // ms para confirmar clique
 
         // Elementos
         const desktopContainer = document.getElementById('desktop-container');
@@ -442,6 +454,8 @@
         function switchDesktop(index) {
             if (index < 0) index = 0;
             if (index > 2) index = 2;
+            if (currentDesktop === index) return;
+            
             currentDesktop = index;
             desktopContainer.style.transform = `translateX(-${currentDesktop * 100}%)`;
             
@@ -451,6 +465,8 @@
             document.querySelectorAll('.menu-item').forEach((item, i) => {
                 item.classList.toggle('active', i === currentDesktop);
             });
+            
+            updateStatus(`📱 Área ${currentDesktop === 0 ? 'Home' : currentDesktop === 1 ? 'Arquivos' : 'Pesquisa'}`);
         }
 
         document.querySelectorAll('.menu-item').forEach((item, idx) => {
@@ -536,13 +552,117 @@
                 videoElement.style.display = 'block';
                 await videoElement.play();
                 
-                updateStatus('📸 Câmera Frontal ATIVA | Gestos disponíveis');
+                updateStatus('📸 Câmera Frontal ATIVA | Aponte o dedo');
                 initMediaPipe();
                 
             } catch (err) {
                 console.error('Erro na câmera:', err);
                 updateStatus('❌ Erro na câmera: ' + err.name);
                 videoElement.style.display = 'none';
+            }
+        }
+
+        // ========== DETECÇÃO DE SWIPE MELHORADA ==========
+        function detectSwipe(currentX) {
+            // Adicionar posição ao histórico
+            handPositionHistory.push({ x: currentX, time: Date.now() });
+            
+            // Manter apenas últimos 500ms
+            while (handPositionHistory.length > 0 && Date.now() - handPositionHistory[0].time > 500) {
+                handPositionHistory.shift();
+            }
+            
+            if (handPositionHistory.length < 5) return;
+            
+            // Calcular movimento total
+            const startX = handPositionHistory[0].x;
+            const endX = handPositionHistory[handPositionHistory.length - 1].x;
+            const deltaX = endX - startX;
+            const timeSpan = handPositionHistory[handPositionHistory.length - 1].time - handPositionHistory[0].time;
+            
+            // Verificar se é um swipe rápido e distante
+            const isFastSwipe = timeSpan < 300;
+            const isLongSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD;
+            
+            if (isFastSwipe && isLongSwipe && (Date.now() - lastSwipeTime) > SWIPE_COOLDOWN) {
+                if (deltaX > 0) {
+                    // Swipe para direita -> área anterior
+                    switchDesktop(currentDesktop - 1);
+                } else {
+                    // Swipe para esquerda -> próxima área
+                    switchDesktop(currentDesktop + 1);
+                }
+                lastSwipeTime = Date.now();
+                handPositionHistory = []; // Reset após swipe
+            }
+        }
+
+        // ========== DETECÇÃO DE CLIQUE MELHORADA ==========
+        let lastIndexTipPosition = null;
+        
+        function detectClick(indexTipX, indexTipY, isIndexExtended) {
+            if (!isIndexExtended) {
+                // Dedo não está apontando, cancelar hover
+                if (currentHoverElement) {
+                    currentHoverElement.classList.remove('hand-hover');
+                    currentHoverElement = null;
+                }
+                hoverStartTime = null;
+                lastIndexTipPosition = null;
+                return;
+            }
+            
+            // Verificar se o dedo está parado (para evitar cliques acidentais)
+            if (lastIndexTipPosition) {
+                const moved = Math.hypot(indexTipX - lastIndexTipPosition.x, indexTipY - lastIndexTipPosition.y);
+                if (moved > 15) {
+                    // Dedo se moveu, resetar hover
+                    if (currentHoverElement) {
+                        currentHoverElement.classList.remove('hand-hover');
+                        currentHoverElement = null;
+                    }
+                    hoverStartTime = null;
+                }
+            }
+            lastIndexTipPosition = { x: indexTipX, y: indexTipY };
+            
+            // Encontrar elemento sob o dedo
+            const clickableElements = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn');
+            let elementUnderFinger = null;
+            
+            for (let el of clickableElements) {
+                const rect = el.getBoundingClientRect();
+                if (indexTipX >= rect.left && indexTipX <= rect.right && indexTipY >= rect.top && indexTipY <= rect.bottom) {
+                    elementUnderFinger = el;
+                    break;
+                }
+            }
+            
+            // Se mudou de elemento, resetar
+            if (currentHoverElement !== elementUnderFinger) {
+                if (currentHoverElement) {
+                    currentHoverElement.classList.remove('hand-hover');
+                }
+                currentHoverElement = elementUnderFinger;
+                hoverStartTime = elementUnderFinger ? Date.now() : null;
+                if (currentHoverElement) {
+                    currentHoverElement.classList.add('hand-hover');
+                }
+            }
+            
+            // Se está no mesmo elemento há tempo suficiente, clicar
+            if (currentHoverElement && hoverStartTime && (Date.now() - hoverStartTime) > CLICK_HOLD_TIME) {
+                currentHoverElement.click();
+                // Feedback visual rápido
+                currentHoverElement.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    if (currentHoverElement) currentHoverElement.style.transform = '';
+                }, 100);
+                
+                // Reset para não clicar várias vezes
+                hoverStartTime = null;
+                currentHoverElement.classList.remove('hand-hover');
+                currentHoverElement = null;
             }
         }
 
@@ -572,40 +692,6 @@
             }
         }
 
-        function detectGestures(landmarks) {
-            // Swipe
-            const currentX = landmarks[0].x;
-            if (lastHandX !== null && (Date.now() - lastSwipeTime) > 500) {
-                const delta = currentX - lastHandX;
-                if (delta > 0.04) switchDesktop(currentDesktop - 1);
-                else if (delta < -0.04) switchDesktop(currentDesktop + 1);
-                if (Math.abs(delta) > 0.04) lastSwipeTime = Date.now();
-            }
-            lastHandX = currentX;
-            
-            // Clique com indicador
-            const indexTip = landmarks[8];
-            const indexMcp = landmarks[5];
-            if (indexTip.y < indexMcp.y) {
-                const x = indexTip.x * window.innerWidth;
-                const y = indexTip.y * window.innerHeight;
-                const clickables = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn');
-                for (let el of clickables) {
-                    const rect = el.getBoundingClientRect();
-                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-                        if (!el.hasAttribute('data-hover')) {
-                            el.setAttribute('data-hover', Date.now());
-                        } else if (Date.now() - parseInt(el.getAttribute('data-hover')) > 500) {
-                            el.click();
-                            el.removeAttribute('data-hover');
-                        }
-                    } else {
-                        el.removeAttribute('data-hover');
-                    }
-                }
-            }
-        }
-
         function onHandResults(results) {
             if (!ctx || !handCanvas) return;
             ctx.clearRect(0, 0, handCanvas.width, handCanvas.height);
@@ -616,10 +702,29 @@
             }
             
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawHand(landmarks);
-                    detectGestures(landmarks);
+                const landmarks = results.multiHandLandmarks[0];
+                drawHand(landmarks);
+                
+                // Pegar posição da palma da mão (ponto 0) para swipe
+                const palmX = landmarks[0].x;
+                detectSwipe(palmX);
+                
+                // Pegar ponta do dedo indicador (ponto 8) para clique
+                const indexTip = landmarks[8];
+                const indexMcp = landmarks[5];
+                const isIndexExtended = indexTip.y < indexMcp.y;
+                const tipX = indexTip.x * window.innerWidth;
+                const tipY = indexTip.y * window.innerHeight;
+                
+                detectClick(tipX, tipY, isIndexExtended);
+            } else {
+                // Nenhuma mão detectada, resetar estados
+                if (currentHoverElement) {
+                    currentHoverElement.classList.remove('hand-hover');
+                    currentHoverElement = null;
                 }
+                hoverStartTime = null;
+                handPositionHistory = [];
             }
         }
 
@@ -631,10 +736,10 @@
             });
             
             hands.setOptions({
-                maxNumHands: 2,
+                maxNumHands: 1,
                 modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
             });
             
             hands.onResults(onHandResults);
@@ -656,7 +761,6 @@
             updateStatus('🟢 INICIANDO...');
             startCamera();
             
-            // Redimensionar canvas
             window.addEventListener('resize', () => {
                 if (handCanvas) {
                     handCanvas.width = window.innerWidth;
@@ -669,7 +773,7 @@
         }
 
         init();
-        console.log('🚀 HUD Iniciado!');
+        console.log('🚀 HUD Iniciado! Gestos: Deslize RÁPIDO para trocar tela | Aponte para clicar');
     </script>
 </body>
 </html>
