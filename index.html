@@ -2,8 +2,8 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MR Spatial Suite - Holographic HUD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MR Spatial Suite - Holographic HUD v2</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -13,8 +13,6 @@
 <body>
 
     <div id="hud-container">
-        <div id="status" class="glass-card">Aguardando Câmera...</div>
-        
         <video id="webcam" autoplay playsinline></video>
         <canvas id="output_canvas"></canvas>
 
@@ -22,7 +20,9 @@
             <div class="reticle-core"></div>
         </div>
 
-        <header class="panel-top-right glass-card">
+        <header class="panel-top glass-card">
+            <div id="status">CONECTADO</div>
+            <div class="divider"></div>
             <button class="hud-btn" id="btn-menu">☰</button>
             <button class="hud-btn" id="btn-vr">🥽</button>
             <button class="hud-btn" id="btn-dots">⋮</button>
@@ -30,7 +30,7 @@
 
         <aside class="panel-left">
             <div class="hud-card glass-card" id="card-volume">
-                <div class="card-header">🔊 VOLUME</div>
+                <div class="card-header">VOLUME</div>
                 <div class="slider-container-horizontal">
                     <span class="step-icon">🔈</span>
                     <div class="hud-track"><div class="hud-bar" id="vol-bar" style="width: 50%;"></div></div>
@@ -39,7 +39,7 @@
             </div>
 
             <div class="hud-card glass-card" id="card-zoom">
-                <div class="card-header">🔍 ZOOM</div>
+                <div class="card-header">ZOOM</div>
                 <div class="hud-display" id="zoom-txt">100%</div>
                 <div class="slider-container-horizontal">
                     <span class="step-icon">−</span>
@@ -60,11 +60,11 @@
         </aside>
 
         <aside class="panel-right glass-card" id="panel-slider-vertical">
-            <button class="hud-btn-sm" id="v-up">+</button>
+            <button class="hud-btn-sm" id="v-up">＋</button>
             <div class="hud-track-vertical">
                 <div class="hud-bar-vertical" id="v-bar-fill" style="height: 50%;"></div>
             </div>
-            <button class="hud-btn-sm" id="v-down">−</button>
+            <button class="hud-btn-sm" id="v-down">－</button>
         </aside>
 
         <footer class="panel-bottom glass-card">
