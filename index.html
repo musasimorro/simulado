@@ -1,9 +1,9 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR Hand Tracking - Galeria Local</title>
+    <title>VR Mixed Reality Media Player</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -16,6 +16,7 @@
             background: #111;
             overflow: hidden;
             font-family: sans-serif;
+            user-select: none;
         }
         #container {
             position: relative;
@@ -27,25 +28,35 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
             z-index: 1;
+            /* Removido o espelhamento para a câmera traseira ficar natural */
         }
-        /* Elemento que vai mostrar a sua foto da galeria atrás das suas mãos */
-        #background_media {
+        
+        /* Container da Mídia Flutuante (Arrastável e Redimensionável) */
+        #media_wrapper {
             position: absolute;
+            top: 25%;
+            left: 25%;
+            width: 50%;
+            height: 50%;
+            z-index: 2;
+            opacity: 0.8;
+            display: none;
+            box-sizing: border-box;
+            pointer-events: none; /* Deixa os cliques físicos passarem para o esqueleto processar */
+        }
+        #bg_img, #bg_video {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            z-index: 2;
-            opacity: 0.7; /* Transparência para você ainda ver o mundo real ao fundo */
             display: none;
         }
+
         #output_canvas {
             position: absolute;
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
             z-index: 3;
         }
         #status {
@@ -59,9 +70,43 @@
             border-radius: 20px;
             z-index: 4;
             font-weight: bold;
-            pointer-events: none;
         }
-        /* Botão para abrir o seletor de arquivos do celular */
+
+        /* Painel de Controles Virtuais para Vídeo */
+        #video_controls {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 15px;
+            z-index: 5;
+        }
+        .v-btn {
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            border: 2px solid #00FF00;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .v-btn.active {
+            background: #00FF00;
+            color: black;
+        }
+
+        /* Controles de Foto (Zoom/Giro/Reset manuais por segurança) */
+        #photo_controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 5;
+        }
+
         #file_label {
             position: absolute;
             bottom: 30px;
@@ -74,11 +119,8 @@
             z-index: 5;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
-        #file_input {
-            display: none;
-        }
+        #file_input { display: none; }
     </style>
 </head>
 <body>
@@ -86,11 +128,27 @@
     <div id="container">
         <div id="status">Aguardando câmera...</div>
         <video id="webcam" autoplay playsinline></video>
-        <img id="background_media" alt="Sua Foto">
+        
+        <div id="media_wrapper">
+            <img id="bg_img" src="" alt="Photo">
+            <video id="bg_video" loop playsinline></video>
+        </div>
+
         <canvas id="output_canvas"></canvas>
         
-        <label id="file_label" for="file_input">Selecionar da Galeria 📂</label>
-        <input type="file" id="file_input" accept="image/*">
+        <div id="video_controls">
+            <div id="btn_play" class="v-btn">PLAY/PAUSE</div>
+            <div id="btn_vol_up" class="v-btn">VOL +</div>
+            <div id="btn_vol_down" class="v-btn">VOL -</div>
+        </div>
+
+        <div id="photo_controls">
+            <div id="btn_zoom_in" class="v-btn">ZOOM +</div>
+            <div id="btn_zoom_out" class="v-btn">ZOOM -</div>
+        </div>
+
+        <label id="file_label" for="file_input">Carregar Mídia 📂</label>
+        <input type="file" id="file_input" accept="image/*,video/*">
     </div>
 
     <script>
@@ -98,8 +156,21 @@
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const statusDiv = document.getElementById('status');
-        const bgMedia = document.getElementById('background_media');
         const fileInput = document.getElementById('file_input');
+        
+        const mediaWrapper = document.getElementById('media_wrapper');
+        const bgImg = document.getElementById('bg_img');
+        const bgVideo = document.getElementById('bg_video');
+        
+        const videoControls = document.getElementById('video_controls');
+        const photoControls = document.getElementById('photo_controls');
+
+        // Variáveis de estado da mídia flutuante
+        let mediaWidth = 50;  // em %
+        let mediaLeft = 25;   // em %
+        let mediaTop = 25;    // em %
+        let isDragging = false;
+        let cooldown = false; // Evita cliques múltiplos repetidos rapidamente no ar
 
         function resizeCanvas() {
             canvasElement.width = window.innerWidth;
@@ -108,52 +179,131 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Lógica para ler o arquivo selecionado do celular
+        // Detecta o upload e diferencia Foto de Vídeo
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    bgMedia.src = event.target.result;
-                    bgMedia.style.display = 'block'; // Mostra a imagem na tela
-                }
-                reader.readAsDataURL(file);
+            if (!file) return;
+
+            const fileURL = URL.createObjectURL(file);
+            mediaWrapper.style.display = 'block';
+
+            if (file.type.startsWith('video/')) {
+                bgImg.style.display = 'none';
+                photoControls.style.display = 'none';
+                
+                bgVideo.src = fileURL;
+                bgVideo.style.display = 'block';
+                bgVideo.play();
+                bgVideo.volume = 0.5;
+                videoControls.style.display = 'flex';
+            } else {
+                bgVideo.style.display = 'none';
+                bgVideo.pause();
+                videoControls.style.display = 'none';
+                
+                bgImg.src = fileURL;
+                bgImg.style.display = 'block';
+                photoControls.style.display = 'flex';
             }
         });
 
         function getDistance(p1, p2) {
-            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        // Verifica se a ponta do dedo está colidindo com um elemento HTML da tela
+        function checkCollision(landmark, elementId) {
+            const el = document.getElementById(elementId);
+            if (!el || el.style.display === 'none' || el.parentElement.style.display === 'none') return false;
+            
+            const rect = el.getBoundingClientRect();
+            // Converte a coordenada normalizada (0 a 1) do MediaPipe para pixels na tela
+            const x = landmark.x * canvasElement.width;
+            const y = landmark.y * canvasElement.height;
+
+            return (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+        }
+
+        function triggerCooldown() {
+            cooldown = true;
+            setTimeout(() => { cooldown = false; }, 800); // 800ms de intervalo entre cliques no ar
         }
 
         function onResults(results) {
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Se não tiver imagem carregada na tela, desenha a câmera direto no canvas
-            if (bgMedia.style.display !== 'block') {
-                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            }
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // Reseta classes de feedback visual dos botões
+            document.querySelectorAll('.v-btn').forEach(b => b.classList.remove('active'));
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusDiv.innerText = "Mão detectada!";
-                statusDiv.style.background = "rgba(0,0,0,0.7)";
+                statusDiv.innerText = "Modo MR Ativo";
+                
+                // Pegamos a primeira mão detectada
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Desenha o esqueleto na tela
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 3});
+                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 4});
 
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
-                    drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 5});
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                const middleTip = landmarks[12];
 
-                    const thumbTip = landmarks[4];
-                    const indexTip = landmarks[8];
-                    const distance = getDistance(thumbTip, indexTip);
+                // Coordenadas do indicador em pixels
+                const indexX = indexTip.x * canvasElement.width;
+                const indexY = indexTip.y * canvasElement.height;
 
-                    // Se fizer o gesto de clique, dá um efeito visual na mídia
-                    if (distance < 0.05) {
-                        statusDiv.innerText = "Gesto Detectado! 🫵";
-                        statusDiv.style.background = "#00FF00";
-                        bgMedia.style.borderColor = "#00FF00";
+                // 1. LÓGICA DE CLIQUE NOS BOTÕES VIRTUAIS (Dedo indicador em cima do botão + gesto de pinça)
+                const isPinching = getDistance(thumbTip, indexTip) < 0.05;
+
+                if (isPinching && !cooldown) {
+                    if (checkCollision(indexTip, 'btn_play')) {
+                        document.getElementById('btn_play').classList.add('active');
+                        if (bgVideo.paused) bgVideo.play(); else bgVideo.pause();
+                        triggerCooldown();
+                    }
+                    else if (checkCollision(indexTip, 'btn_vol_up')) {
+                        document.getElementById('btn_vol_up').classList.add('active');
+                        bgVideo.volume = Math.min(1, bgVideo.volume + 0.1);
+                        triggerCooldown();
+                    }
+                    else if (checkCollision(indexTip, 'btn_vol_down')) {
+                        document.getElementById('btn_vol_down').classList.add('active');
+                        bgVideo.volume = Math.max(0, bgVideo.volume - 0.1);
+                        triggerCooldown();
+                    }
+                    else if (checkCollision(indexTip, 'btn_zoom_in')) {
+                        mediaWidth = Math.min(100, mediaWidth + 5);
+                        mediaWrapper.style.width = mediaWidth + '%';
+                        mediaWrapper.style.height = mediaWidth + '%';
+                        triggerCooldown();
+                    }
+                    else if (checkCollision(indexTip, 'btn_zoom_out')) {
+                        mediaWidth = Math.max(15, mediaWidth - 5);
+                        mediaWrapper.style.width = mediaWidth + '%';
+                        mediaWrapper.style.height = mediaWidth + '%';
+                        triggerCooldown();
                     }
                 }
+
+                // 2. LÓGICA DE ARRASTAR A MÍDIA (Mantenha indicador e dedo médio juntos para carregar a tela)
+                const isDraggingGesto = getDistance(indexTip, middleTip) < 0.04;
+                
+                if (isDraggingGesto) {
+                    // Atualiza a posição central do wrapper baseado no seu dedo indicador
+                    mediaLeft = (indexTip.x * 100) - (mediaWidth / 2);
+                    mediaTop = (indexTip.y * 100) - (mediaWidth / 2);
+                    
+                    mediaWrapper.style.left = mediaLeft + '%';
+                    mediaWrapper.style.top = mediaTop + '%';
+                    mediaWrapper.style.border = "2px dashed #00FF00";
+                } else {
+                    mediaWrapper.style.border = "none";
+                }
+
             } else {
-                statusDiv.innerText = "Posicione sua mão na câmera";
+                statusDiv.innerText = "Posicione a mão na câmera";
             }
         }
 
@@ -164,26 +314,19 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
         });
 
         hands.onResults(onResults);
 
         const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
+            onFrame: async () => { await hands.send({image: videoElement}); },
             width: 1280,
             height: 720,
             facingMode: "environment"
         });
-        
-        camera.start().then(() => {
-            statusDiv.innerText = "Posicione sua mão na câmera";
-        }).catch(err => {
-            statusDiv.innerText = "Erro ao abrir a câmera: " + err;
-        });
+        camera.start();
     </script>
 </body>
 </html>
