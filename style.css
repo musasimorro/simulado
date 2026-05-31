@@ -1,159 +1,63 @@
-:root {
-    --neon-blue: #00BFFF;
-    --neon-glow: rgba(0, 191, 255, 0.35);
-    --neon-danger: #FF3333;
-    --glass-bg: rgba(8, 20, 42, 0.22);
-    --glass-border: rgba(0, 191, 255, 0.4);
-    --safe-top: calc(max(80px, env(safe-area-inset-top)) + 40px);
-}
-
-body {
-    margin: 0; padding: 0;
-    background: #01040a;
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: #ffffff;
-    user-select: none;
-    width: 100vw; height: 100vh;
-    perspective: 1200px;
+    background-color: #000; /* Fundo base */
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-#spatial-os-container {
-    position: relative; width: 100%; height: 100%;
+/* O Canvas deve cobrir o ecrã inteiro fixo ao fundo */
+#output_canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1; /* Fica atrás de toda a interface */
+    object-fit: cover;
 }
 
-#webcam, #output_canvas {
-    position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1;
-}
-#output_canvas { z-index: 2; pointer-events: none; }
-
-/* Base Holográfica (Glassmorphism) */
-.glass-card {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    border-radius: 24px;
-    box-shadow: 0 0 10px rgba(0, 191, 255, 0.3), 0 0 30px rgba(0, 191, 255, 0.2);
-    z-index: 10;
-    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s;
-}
-
-/* Efeito Luminoso / Interação de Foco (Hover por Colisão) */
-.glass-card.hud-hover, .dock-btn-round.hud-hover, .dock-btn-main.hud-hover, .shortcut-item.hud-hover {
-    border-color: #ffffff;
-    box-shadow: 0 0 30px rgba(0, 191, 255, 0.7), inset 0 0 12px rgba(255, 255, 255, 0.2);
-    transform: scale(1.04);
-}
-
-/* Retículo Espacial */
-.spatial-reticle {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 40px; height: 40px; border: 1px dashed rgba(0, 191, 255, 0.3);
-    border-radius: 50%; z-index: 5; pointer-events: none;
-    display: flex; align-items: center; justify-content: center;
-}
-.reticle-core {
-    width: 4px; height: 4px; background: var(--neon-blue); border-radius: 50%;
-    box-shadow: 0 0 8px var(--neon-blue);
-}
-
-/* Overlay de Transição (Toast) */
-#workspace-overlay-toast {
-    position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-    padding: 15px 40px; border-radius: 50px; font-weight: bold; font-size: 20px;
-    letter-spacing: 3px; color: var(--neon-blue); border: 1px solid var(--neon-border);
-    opacity: 0; z-index: 100; pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-/* LAYOUT: TOPO */
-.hud-top-panel {
-    position: absolute; top: var(--safe-top); right: 50px;
-    display: flex; align-items: center; gap: 18px; padding: 12px 26px;
-}
-#os-status-indicator {
-    font-size: 11px; letter-spacing: 2px; font-weight: bold; color: var(--neon-blue);
-    text-shadow: 0 0 5px var(--neon-blue);
-}
-.hud-v-divider { width: 1px; height: 16px; background: rgba(255, 255, 255, 0.2); }
-.hud-btn { background: transparent; border: none; color: #fff; font-size: 18px; cursor: pointer; }
-
-/* LAYOUT: LADO DIREITO (Slider Centralizado) */
-.hud-right-slider {
-    position: absolute; right: 50px; top: 50%;
-    height: 340px; width: 54px; display: flex; flex-direction: column;
-    align-items: center; justify-content: space-between; padding: 20px 0;
-}
-.spatial-tilt-right { transform: translateY(-50%) rotateY(-14deg); transform-origin: right center; }
-.hud-right-slider.hud-hover { transform: translateY(-50%) rotateY(-6deg) scale(1.04); }
-.slider-inc-btn, .slider-dec-btn { background: transparent; border: none; color: #fff; font-size: 20px; }
-.v-track { width: 4px; height: 70%; background: rgba(255,255,255,0.1); border-radius: 2px; position: relative; overflow: hidden; }
-.v-bar-fill { width: 100%; position: absolute; bottom: 0; background: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue); }
-
-/* LAYOUT: PARTE INFERIOR (Dock VisionOS) */
-.hud-bottom-dock {
-    position: absolute; bottom: max(40px, env(safe-area-inset-bottom)); left: 50%;
-    transform: translateX(-50%); display: flex; align-items: center; gap: 20px; padding: 12px 36px;
-}
-.dock-btn-round {
-    width: 44px; height: 44px; background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 50%; color: #fff; font-size: 16px;
-    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
-}
-.dock-btn-main {
-    width: 58px; height: 58px; background: transparent; border: 2px solid var(--neon-blue);
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 15px var(--neon-glow); transition: all 0.2s;
-}
-.main-core { width: 40px; height: 40px; background: #fff; border-radius: 50%; }
-
-/* ================= COMPONENTES DOS WORKSPACES ================= */
+/* O container do teu HUD flutuante */
 #workspace-viewport {
-    position: absolute; left: 50px; top: calc(var(--safe-top) + 90px);
-    bottom: calc(max(40px, env(safe-area-inset-bottom)) + 100px);
-    right: 140px; z-index: 8;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10; /* Fica à frente do vídeo da câmara */
+    background: transparent; /* CRUCIAL: Remove qualquer fundo sólido para ver a câmara */
+    pointer-events: none; /* Deixa o clique passar para os elementos filhos */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform-style: preserve-3d;
+    transition: transform 0.1s ease-out;
 }
 
-/* Alinhamento Espacial Esquerdo Genérico */
-.spatial-tilt-left { transform: rotateY(14deg); transform-origin: left center; }
+/* Garante que os teus cartões voltam a aceitar interações */
+.glass-card, button, input, iframe {
+    pointer-events: auto;
+}
 
-/* Workspace Home UI */
-.home-layout { display: flex; gap: 30px; height: 100%; }
-.home-dashboard { width: 260px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-.dash-row { display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
-.dash-row span:last-child { color: var(--neon-blue); font-weight: bold; }
-.clock-display { font-size: 38px; font-weight: bold; text-align: center; letter-spacing: 1px; margin: 10px 0; }
-
-.home-shortcuts { flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-.shortcut-item { padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
-.shortcut-icon { font-size: 32px; margin-bottom: 8px; }
-.shortcut-label { font-size: 11px; font-weight: bold; letter-spacing: 1px; }
-
-/* Workspace Media UI */
-.media-player-container { display: flex; flex-direction: column; gap: 20px; width: 340px; padding: 20px; }
-.media-display-screen { position: absolute; left: 380px; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
-.media-display-screen img, .media-display-screen video { max-width: 100%; max-height: 100%; border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); }
-
-/* Workspace Browser UI */
-.browser-container { display: flex; flex-direction: column; height: 100%; width: 100%; padding: 15px; box-sizing: border-box; }
-.browser-bar { display: flex; gap: 10px; margin-bottom: 15px; }
-.browser-input { flex-grow: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 50px; padding: 8px 20px; color: #fff; }
-.browser-iframe-wrapper { flex-grow: 1; background: #000; border-radius: 12px; overflow: hidden; }
-.browser-iframe-wrapper iframe { width: 100%; height: 100%; border: none; }
-
-/* Workspace AI UI */
-.ai-container { display: flex; flex-direction: column; height: 100%; width: 400px; padding: 20px; }
-.ai-chat-history { flex-grow: 1; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; gap: 10px; }
-.ai-bubble { padding: 8px 14px; border-radius: 16px; max-width: 80%; }
-.ai-bubble.user { background: var(--glass-border); align-self: flex-end; }
-.ai-bubble.system { background: rgba(255,255,255,0.06); align-self: flex-start; border-left: 2px solid var(--neon-blue); }
-.ai-input-bar { display: flex; gap: 10px; margin-top: 15px; align-items: center; }
-.mic-status-node { font-size: 12px; color: var(--neon-blue); animation: pulse 1.5s infinite alternate; }
-
-/* Animações Operacionais */
-@keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
-.workspace-animate-fade { animation: wsFade 0.4s ease forwards; }
-@keyframes wsFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-                         
+/* Toast flutuante de avisos do sistema */
+#workspace-overlay-toast {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #00bfff;
+    padding: 10px 25px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
