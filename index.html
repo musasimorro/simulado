@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MR Spatial Suite - Holographic HUD v3</title>
+    <title>MR Spatial OS</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -12,66 +12,44 @@
 </head>
 <body>
 
-    <div id="hud-container">
+    <div id="spatial-os-container">
         <video id="webcam" autoplay playsinline></video>
         <canvas id="output_canvas"></canvas>
 
-        <div class="reticle">
-            <div class="reticle-core"></div>
-        </div>
+        <div class="spatial-reticle"><div class="reticle-core"></div></div>
 
-        <header class="panel-top glass-card">
-            <div id="status">CONECTADO</div>
-            <div class="divider"></div>
-            <button class="hud-btn" id="btn-menu">☰</button>
-            <button class="hud-btn" id="btn-vr">🥽</button>
-            <button class="hud-btn" id="btn-dots">⋮</button>
+        <div id="workspace-overlay-toast">WORKSPACE HOME</div>
+
+        <header class="hud-top-panel glass-card">
+            <div id="os-status-indicator">SYSTEM ONLINE</div>
+            <div class="hud-v-divider"></div>
+            <button class="hud-btn" id="global-menu-btn">☰</button>
+            <button class="hud-btn" id="global-vr-btn">🥽</button>
+            <button class="hud-btn" id="global-config-btn">⋮</button>
         </header>
 
-        <aside class="panel-left spatial-tilt-left">
-            <div class="hud-card glass-card" id="card-zoom">
-                <div class="card-header">ZOOM</div>
-                <div class="hud-display" id="zoom-txt">100%</div>
-                <div class="slider-container-horizontal">
-                    <span class="step-icon">−</span>
-                    <div class="hud-track"><div class="hud-bar" id="zoom-bar" style="width: 50%;"></div></div>
-                    <span class="step-icon">+</span>
-                </div>
-            </div>
+        <main id="workspace-viewport" class="workspace-animate-fade">
+            </main>
 
-            <div class="hud-card glass-card trigger-btn" id="card-trash">
-                <div class="trash-icon" style="font-size: 24px;">🗑️</div>
-                <div class="card-label">LIXEIRA</div>
-            </div>
-
-            <div class="hud-card glass-card trigger-btn" id="card-upload">
-                <div class="upload-icon" style="font-size: 24px;">📂</div>
-                <div class="card-label">ABRIR ARQUIVO</div>
-            </div>
+        <aside class="hud-right-slider glass-card spatial-tilt-right" id="vertical-master-slider">
+            <button class="slider-inc-btn">＋</button>
+            <div class="v-track"><div class="v-bar-fill" id="master-slider-fill" style="height: 50%;"></div></div>
+            <button class="slider-dec-btn">－</button>
         </aside>
 
-        <aside class="panel-right glass-card spatial-tilt-right" id="panel-slider-vertical">
-            <button class="hud-btn-sm" id="v-up">＋</button>
-            <div class="hud-track-vertical">
-                <div class="hud-bar-vertical" id="v-bar-fill" style="height: 50%;"></div>
-            </div>
-            <button class="hud-btn-sm" id="v-down">－</button>
-        </aside>
-
-        <footer class="panel-bottom glass-card">
-            <button class="hud-btn-round" id="nav-back">↩</button>
-            <button class="hud-btn-round" id="nav-prev">⏮</button>
-            <button class="hud-btn-main" id="media-play">
+        <footer class="hud-bottom-dock glass-card">
+            <button class="dock-btn-round" id="dock-back" title="Voltar Workspace">↩</button>
+            <button class="dock-btn-round" id="dock-prev" title="Anterior">⏮</button>
+            <button class="dock-btn-main" id="dock-center-action" title="Ação Principal">
                 <div class="main-core"></div>
             </button>
-            <button class="hud-btn-round" id="nav-next">⏭</button>
-            <button class="hud-btn-round" id="nav-refresh">↻</button>
+            <button class="dock-btn-round" id="dock-next" title="Próximo">⏭</button>
+            <button class="dock-btn-round" id="dock-refresh" title="Reiniciar Sistema">↻</button>
         </footer>
     </div>
 
-    <input type="file" id="file_input" accept="image/*,video/*">
-    <img id="hidden_img" style="display:none;">
-    <video id="hidden_video" loop playsinline style="display:none;"></video>
+    <input type="file" id="system-file-picker" accept="image/*,video/*,application/pdf" multiple>
+    <audio id="spatial-audio-node" style="display:none;"></audio>
 
     <script src="app.js"></script>
 </body>
