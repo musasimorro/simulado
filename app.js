@@ -1,362 +1,308 @@
-// Captura de Elementos Estruturais
+// ==========================================================================
+// MR SPATIAL OS - CORE ENGINE & TWO-HANDED PINCH ZOOM
+// ==========================================================================
+
 const videoElement = document.getElementById('webcam');
 const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d');
-const systemViewport = document.getElementById('workspace-viewport');
-const toastIndicator = document.getElementById('workspace-overlay-toast');
-const filePicker = document.getElementById('system-file-picker');
 
-// Variáveis de Estado Global do OS
-const workspaces = { home: {}, media: {}, browser: {}, files: {}, ai: {} };
-const workspaceOrder = ["home", "media", "browser", "files", "ai"];
+// Gerenciamento de Workspaces
+const workspaces = ['home', 'files', 'search'];
+let currentWorkspaceIndex = 0;
 let currentWorkspace = "home";
 
+// Estado de Navegação / Swipe por Movimento
 let lastHandX = null;
+const swipeThreshold = 0.18;
 let swipeCooldown = false;
-let isDraggingMedia = false;
-let mediaPosition = { x: 400, y: 50, scale: 1.0 };
-let activeFileObject = null; // Guarda referências de upload
-let currentVolume = 0.5;
 
-// Mapeamento e Inicialização do Reconhecimento de Voz (Nativo)
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognitionActive = false;
-let voiceRecognitionNode = null;
+// Estado do Clique Virtual (Mão Direita/Principal)
+let lastClickTime = 0;
+const doubleClickDelay = 350;
+let isPinchedRight = false;
 
-if (SpeechRecognition) {
-    voiceRecognitionNode = new SpeechRecognition();
-    voiceRecognitionNode.continuous = true;
-    voiceRecognitionNode.lang = 'pt-BR';
-    voiceRecognitionNode.interimResults = false;
+// Estado do Zoom com Duas Mãos
+let isZoomingMode = false;
+let initialPinchDistance = 0;
+let initialScale = 1.0;
+let globalZoomScale = 1.0; // Fator de zoom mestre aplicado aos elementos da UI
 
-    voiceRecognitionNode.onresult = (event) => {
-        const command = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        processVoiceCommand(command);
-    };
+function initOS() {
+    canvasElement.width = window.innerWidth;
+    canvasElement.height = window.innerHeight;
+    window.addEventListener('resize', () => {
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+    });
+    loadWorkspace("home");
+}
+
+/**
+ * Retorna a distância Euclidiana 3D entre dois pontos do MediaPipe
+ */
+function getDistance3D(p1, p2) {
+    return Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
+}
+
+/**
+ * Callback principal processado a cada quadro capturado pela câmera
+ */
+function onResults(results) {
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+    let leftHandLandmarks = null;
+    let rightHandLandmarks = null;
+
+    // Identificar e separar a Mão Esquerda e a Mão Direita no frame
+    if (results.multiHandLandmarks && results.multiHandedness) {
+        results.multiHandLandmarks.forEach((landmarks, index) => {
+            const label = results.multiHandedness[index].label; // "Left" ou "Right"
+            
+            // Desenhar o esqueleto virtual holográfico na tela
+            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.25)', lineWidth: 1.5});
+            drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 0.5, radius: 1.5});
+
+            if (label === 'Left') leftHandLandmarks = landmarks;
+            if (label === 'Right') rightHandLandmarks = landmarks;
+        });
+    }
+
+    // --- LOGICA 1: ZOOM COM AS DUAS MÃOS (TWO-HANDED PINCH) ---
+    if (leftHandLandmarks && rightHandLandmarks) {
+        // Verificar se AMBAS as mãos estão fazendo pinça (indicador tocando o dedão)
+        const leftPinchDist = getDistance3D(leftHandLandmarks[4], leftHandLandmarks[8]);
+        const rightPinchDist = getDistance3D(rightHandLandmarks[4], rightHandLandmarks[8]);
+        
+        const leftIsPinching = leftPinchDist < 0.052;
+        const rightIsPinching = rightPinchDist < 0.052;
+
+        if (leftIsPinching && rightIsPinching) {
+            // Centro das pinças de cada mão para medir a distância entre elas
+            const leftCenter = leftHandLandmarks[8];
+            const rightCenter = rightHandLandmarks[8];
+            const currentHandDistance = Math.hypot(leftCenter.x - rightCenter.x, leftCenter.y - rightCenter.y);
+
+            if (!isZoomingMode) {
+                // Ativar modo de zoom e capturar estado inicial para cálculo de delta
+                isZoomingMode = true;
+                initialPinchDistance = currentHandDistance;
+                initialScale = globalZoomScale;
+                showOSToast("ZOOM ATIVO");
+            } else {
+                // Calcula a mudança proporcional baseada na distância das suas mãos
+                const zoomFactor = currentHandDistance / initialPinchDistance;
+                globalZoomScale = Math.min(2.0, Math.max(0.5, initialScale * zoomFactor));
+                
+                // Aplica a escala tridimensional ao viewport central em tempo real
+                applyGlobalZoomUI(globalZoomScale);
+            }
+            return; // Bloqueia outras interações durante o controle de zoom
+        }
+    }
     
-    voiceRecognitionNode.onerror = () => { recognitionActive = false; };
-}
-
-// Mecanismo de Renderização de Componentes Dinâmicos (Workspaces)
-function loadWorkspace(targetWS) {
-    currentWorkspace = targetWS;
-    systemViewport.className = ""; // Limpa animações anteriores
-    void systemViewport.offsetWidth; // Trigger reflow
-    systemViewport.className = "workspace-animate-fade";
-
-    // Dispara alerta flutuante na tela (HUD Toast)
-    toastIndicator.innerText = `WORKSPACE ${targetWS.toUpperCase()}`;
-    toastIndicator.style.opacity = "1";
-    setTimeout(() => { toastIndicator.style.opacity = "0"; }, 800);
-
-    // Injeção de Templates Modulares baseados no escopo do Projeto
-    if (targetWS === "home") {
-        systemViewport.innerHTML = `
-            <div class="home-layout">
-                <div class="home-dashboard glass-card spatial-tilt-left">
-                    <div class="clock-display" id="live-clock">00:00:00</div>
-                    <div class="dash-row"><span>SYS STATUS</span><span>READY</span></div>
-                    <div class="dash-row"><span>BATTERY</span><span>98%</span></div>
-                    <div class="dash-row"><span>WI-FI</span><span>5G_EXT</span></div>
-                    <div class="dash-row"><span>FPS METER</span><span>60 hz</span></div>
-                </div>
-                <div class="home-shortcuts">
-                    <div class="shortcut-item glass-card" id="sc-media"><div class="shortcut-icon">🎵</div><div class="shortcut-label">MEDIA HUD</div></div>
-                    <div class="shortcut-item glass-card" id="sc-browser"><div class="shortcut-icon">🌐</div><div class="shortcut-label">NAVEGADOR</div></div>
-                    <div class="shortcut-item glass-card" id="sc-files"><div class="shortcut-icon">📂</div><div class="shortcut-label">ARQUIVOS</div></div>
-                    <div class="shortcut-item glass-card" id="sc-ai"><div class="shortcut-icon">🧠</div><div class="shortcut-label">ASSISTENTE IA</div></div>
-                </div>
-            </div>`;
-        startLiveClock();
-    } 
-    else if (targetWS === "media") {
-        systemViewport.innerHTML = `
-            <div class="home-layout">
-                <div class="media-player-container glass-card spatial-tilt-left">
-                    <div class="card-header">MEDIA CONTROLS</div>
-                    <div class="hud-display" style="font-size:14px; text-align:left;" id="track-name">Nenhuma mídia ativa</div>
-                    <div class="slider-container-horizontal" style="margin-top:15px;">
-                        <span class="step-icon">ZOOM</span>
-                        <div class="hud-track"><div class="hud-bar" id="media-zoom-bar" style="width: 50%;"></div></div>
-                    </div>
-                    <div class="shortcut-item glass-card" id="media-trigger-upload" style="margin-top:20px; padding:15px; flex-direction:row; gap:10px;">
-                        <span>📂</span><strong>CARREGAR STREAM</strong>
-                    </div>
-                </div>
-                <div class="media-display-screen" id="cinema-projection-screen">
-                    </div>
-            </div>`;
-        renderActiveMedia();
+    // Resetar o modo de zoom assim que soltar uma das mãos
+    if (isZoomingMode) {
+        isZoomingMode = false;
+        showOSToast(`ZOOM FIXADO: ${Math.round(globalZoomScale * 100)}%`);
     }
-    else if (targetWS === "browser") {
-        systemViewport.innerHTML = `
-            <div class="browser-container glass-card">
-                <div class="browser-bar">
-                    <input type="text" class="browser-input" id="browser-url-bar" value="https://www.google.com/search?igu=1">
-                    <button class="dock-btn-round" id="browser-go-btn" style="width:36px; height:36px;">➔</button>
-                </div>
-                <div class="browser-iframe-wrapper">
-                    <iframe id="spatial-iframe-node" src="https://www.google.com/search?igu=1"></iframe>
-                </div>
-            </div>`;
-    }
-    else if (targetWS === "files") {
-        systemViewport.innerHTML = `
-            <div class="home-layout">
-                <div class="home-dashboard glass-card spatial-tilt-left" id="drop-zone-spatial">
-                    <div class="card-header">GERENCIADOR OS</div>
-                    <div style="border:2px dashed rgba(0,191,255,0.3); border-radius:12px; padding:30px 10px; text-align:center; font-size:12px;" id="file-zone-btn">
-                        ARRASTE OU TOQUE<br>PARA PROJETAR MÍDIA
-                    </div>
-                </div>
-                <div class="home-shortcuts" id="file-output-grid" style="grid-template-columns: repeat(3, 1fr);">
-                    <div class="shortcut-item glass-card"><div class="shortcut-icon">📄</div><div class="shortcut-label">Documento.pdf</div></div>
-                </div>
-            </div>`;
-    }
-    else if (targetWS === "ai") {
-        systemViewport.innerHTML = `
-            <div class="ai-container glass-card">
-                <div class="card-header">CORE AI ASSISTANT</div>
-                <div class="ai-chat-history" id="ai-chat-wall">
-                    <div class="ai-bubble system">Olá, sou o assistente espacial do MR OS. Ative os comandos de voz usando a palavra-chave ou interaja diretamente.</div>
-                </div>
-                <div class="ai-input-bar">
-                    <div class="shortcut-item glass-card" id="toggle-mic-btn" style="padding:10px 20px; flex-direction:row; gap:10px; margin:0; width:100%;">
-                        <span id="mic-icon-state">🎙️</span> <strong id="mic-label">LIGAR CAPTURA DE VOZ</strong>
-                    </div>
-                </div>
-            </div>`;
-        if (recognitionActive) updateMicUI(true);
-    }
-}
 
-// Algoritmo de Relógio para o Workspace Home
-function startLiveClock() {
-    const clockNode = document.getElementById('live-clock');
-    if (!clockNode) return;
-    const update = () => {
-        const d = new Date();
-        if(document.getElementById('live-clock')) {
-            document.getElementById('live-clock').innerText = d.toTimeString().split(' ')[0];
-            setTimeout(update, 1000);
+    // --- LOGICA 2: INTERAÇÃO MONOMANUAL (MÃO DIREITA PRINCIPAL) ---
+    if (rightHandLandmarks) {
+        const thumbTip = rightHandLandmarks[4];
+        const indexTip = rightHandLandmarks[8];
+        const wrist = rightHandLandmarks[0];
+
+        // Gesto de Swipe Lateral (Mover o pulso para navegar nos Workspaces)
+        handleWorkspaceSwipe(wrist.x);
+
+        // Mapear posição do cursor na tela baseada no seu indicador
+        const cursorX = window.innerWidth * (1 - indexTip.x);
+        const cursorY = window.innerHeight * indexTip.y;
+        updateVirtualCursor(cursorX, cursorY);
+
+        // Deteção de Clique Simples/Duplo por Pinça Direita
+        const rightPinchDist = getDistance3D(thumbTip, indexTip);
+        if (rightPinchDist < 0.052) {
+            if (!isPinchedRight) {
+                isPinchedRight = true;
+                handleVirtualClick(cursorX, cursorY);
+            }
+        } else {
+            isPinchedRight = false;
         }
-    };
-    update();
-}
-
-// Motor Base para Gerenciamento de Mídias nos Canais de Projeção
-function renderActiveMedia() {
-    const screen = document.getElementById('cinema-projection-screen');
-    const trackLabel = document.getElementById('track-name');
-    if (!screen || !activeFileObject) return;
-
-    trackLabel.innerText = activeFileObject.name;
-    screen.innerHTML = "";
-
-    let node;
-    if (activeFileObject.type.startsWith('video/')) {
-        node = document.createElement('video');
-        node.src = activeFileObject.url;
-        node.autoplay = true;
-        node.controls = true;
-        node.loop = true;
-        node.volume = currentVolume;
     } else {
-        node = document.createElement('img');
-        node.src = activeFileObject.url;
-    }
-    node.style.transform = `scale(${mediaPosition.scale})`;
-    screen.appendChild(node);
-}
-
-// Interpretador de Comandos de Voz Espaciais
-function processVoiceCommand(cmd) {
-    const chatWall = document.getElementById('ai-chat-wall');
-    if (chatWall) {
-        chatWall.innerHTML += `<div class="ai-bubble user">${cmd}</div>`;
-        chatWall.scrollTop = chatWall.scrollHeight;
-    }
-
-    let response = "Comando não catalogado pelo Core.";
-
-    if (cmd.includes("abrir navegador") || cmd.includes("browser")) {
-        loadWorkspace("browser");
-        response = "Carregando ambiente de navegação.";
-    } else if (cmd.includes("home") || cmd.includes("menu principal")) {
-        loadWorkspace("home");
-        response = "Retornando à central Home.";
-    } else if (cmd.includes("media") || cmd.includes("tocar música")) {
-        loadWorkspace("media");
-        response = "Workspace Media ativo.";
-    } else if (cmd.includes("aumentar volume")) {
-        adjustVolume(0.15);
-        response = "Volume mestre expandido.";
-    } else if (cmd.includes("abrir arquivo") || cmd.includes("upload")) {
-        filePicker.click();
-        response = "Abrindo seletor de arquivos do sistema.";
-    }
-
-    if (chatWall) {
-        setTimeout(() => {
-            chatWall.innerHTML += `<div class="ai-bubble system">${response}</div>`;
-            chatWall.scrollTop = chatWall.scrollHeight;
-        }, 600);
+        lastHandX = null;
+        removeVirtualCursor();
     }
 }
 
-function adjustVolume(delta) {
-    currentVolume = Math.min(1.0, Math.max(0.0, currentVolume + delta));
-    document.getElementById('master-slider-fill').style.height = `${currentVolume * 100}%`;
-    const videoNode = document.querySelector('#cinema-projection-screen video');
-    if (videoNode) videoNode.volume = currentVolume;
-}
-
-function updateMicUI(active) {
-    const icon = document.getElementById('mic-icon-state');
-    const label = document.getElementById('mic-label');
-    if (!icon || !label) return;
-    if (active) {
-        icon.className = "mic-status-node";
-        label.innerText = "CAPTURA ATIVA... FALE AGORA";
-    } else {
-        icon.className = "";
-        label.innerText = "LIGAR CAPTURA DE VOZ";
-    }
-}
-
-// Algoritmo de Detecção de Swipe Integrado ao MediaPipe
-function detectSwipe(currentX) {
+/**
+ * Controla a mudança de workspace movendo a mão lateralmente
+ */
+function handleWorkspaceSwipe(currentX) {
     if (swipeCooldown) return;
-
     if (lastHandX !== null) {
-        const delta = currentX - lastHandX;
-        let currentIndex = workspaceOrder.indexOf(currentWorkspace);
-
-        if (delta < -0.18) { // Deslocamento Rápido Direita -> Esquerda
-            let nextIdx = (currentIndex + 1) % workspaceOrder.length;
-            loadWorkspace(workspaceOrder[nextIdx]);
-            activateCooldown();
-        }
-        else if (delta > 0.18) { // Deslocamento Rápido Esquerda -> Direita
-            let prevIdx = (currentIndex - 1 + workspaceOrder.length) % workspaceOrder.length;
-            loadWorkspace(workspaceOrder[prevIdx]);
-            activateCooldown();
+        const deltaX = currentX - lastHandX;
+        if (deltaX > swipeThreshold) { // Swipe Direita -> Workspace Anterior
+            navigateWorkspace(-1);
+            triggerSwipeCooldown();
+        } else if (deltaX < -swipeThreshold) { // Swipe Esquerda -> Próximo Workspace
+            navigateWorkspace(1);
+            triggerSwipeCooldown();
         }
     }
     lastHandX = currentX;
 }
 
-function activateCooldown() {
+function triggerSwipeCooldown() {
     swipeCooldown = true;
     lastHandX = null;
-    setTimeout(() => { swipeCooldown = false; }, 1100);
+    setTimeout(() => { swipeCooldown = false; }, 1000);
 }
 
-// Mecanismo de Varredura de Colisão Geométrica Baseado em Bounds Reais
-function checkDOMCollision(x, y) {
-    document.querySelectorAll('.hud-hover').forEach(el => el.classList.remove('hud-hover'));
-    const interactives = document.querySelectorAll('.glass-card, .dock-btn-round, .dock-btn-main, .shortcut-item, #vertical-master-slider');
+function navigateWorkspace(direction) {
+    currentWorkspaceIndex = (currentWorkspaceIndex + direction + workspaces.length) % workspaces.length;
+    loadWorkspace(workspaces[currentWorkspaceIndex]);
+}
 
-    for (let el of interactives) {
-        const rect = el.getBoundingClientRect();
-        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            el.classList.add('hud-hover');
-            return el.id || el.className;
-        }
+/**
+ * Aplica a transformação de escala 3D ao container principal do OS
+ */
+function applyGlobalZoomUI(scale) {
+    const viewport = document.getElementById('workspace-viewport');
+    if (viewport) {
+        viewport.style.transform = `scale(${scale}) translateZ(${(scale - 1) * 50}px)`;
     }
-    return null;
+    // Opcional: Atualizar barras de status de zoom visuais se existirem
+    const zoomBar = document.getElementById('media-zoom-bar');
+    if (zoomBar) {
+        zoomBar.style.width = `${((scale - 0.5) / 1.5) * 100}%`;
+    }
 }
 
-// Resposta Dinâmica do Frame do MediaPipe Hands
-function onResults(results) {
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+/**
+ * Gerenciador de Duplo Clique Virtual por colisão geométrica
+ */
+function handleVirtualClick(x, y) {
+    const currentTime = Date.now();
+    const timeDiff = currentTime - lastClickTime;
+    const elementAtCursor = document.elementFromPoint(x, y);
+    
+    if (!elementAtCursor) return;
 
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-
-        // Esqueleto Virtual Suave
-        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.25)', lineWidth: 1});
-        drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 0.5, radius: 1});
-
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-
-        // Análise de Gesto de Pinça
-        const distance = Math.sqrt(Math.pow(thumbTip.x - indexTip.x, 2) + Math.pow(thumbTip.y - indexTip.y, 2));
-        const isPinching = distance < 0.052;
-
-        const screenX = indexTip.x * canvasElement.width;
-        const screenY = indexTip.y * canvasElement.height;
-
-        // Executa Monitoramento de Gestos de Navegação Volumétrica (Swipe)
-        detectSwipe(indexTip.x);
-
-        let targetHit = checkDOMCollision(screenX, screenY);
-        const now = Date.now();
-
-        if (isPinching) {
-            // Executores de Cliques Físicos por Mapeamento Direto de ID
-            if (targetHit && (now - lastActionTime > 800)) {
-                lastActionTime = now;
-
-                if (targetHit.includes('shortcut-item') || targetHit.includes('hud-btn')) {
-                    const hoveredElement = document.querySelector('.hud-hover');
-                    if (hoveredElement) {
-                        const targetID = hoveredElement.id;
-                        if (targetID === 'sc-media') loadWorkspace('media');
-                        if (targetID === 'sc-browser') loadWorkspace('browser');
-                        if (targetID === 'sc-files') loadWorkspace('files');
-                        if (targetID === 'sc-ai') loadWorkspace('ai');
-                        
-                        if (targetID === 'media-trigger-upload' || targetID === 'file-zone-btn') filePicker.click();
-                        if (targetID === 'toggle-mic-btn' && voiceRecognitionNode) {
-                            if (!recognitionActive) {
-                                voiceRecognitionNode.start();
-                                recognitionActive = true;
-                            } else {
-                                voiceRecognitionNode.stop();
-                                recognitionActive = false;
-                            }
-                            updateMicUI(recognitionActive);
-                        }
-                    }
-                }
-                // Controle do Dock Base do VisionOS
-                else if (targetHit === 'dock-refresh') { location.reload(); }
-                else if (targetHit === 'dock-next') {
-                    let idx = (workspaceOrder.indexOf(currentWorkspace) + 1) % workspaceOrder.length;
-                    loadWorkspace(workspaceOrder[idx]);
-                }
-                else if (targetHit === 'dock-prev' || targetHit === 'dock-back') {
-                    let idx = (workspaceOrder.indexOf(currentWorkspace) - 1 + workspaceOrder.length) % workspaceOrder.length;
-                    loadWorkspace(workspaceOrder[idx]);
-                }
-                // Ajuste de Volume via Slider da Direita por Colisão Direct-Touch
-                else if (targetHit === 'vertical-master-slider') {
-                    adjustVolume(screenY < window.innerHeight / 2 ? 0.1 : -0.1);
-                }
-            }
+    if (timeDiff < doubleClickDelay && timeDiff > 0) {
+        const clickable = elementAtCursor.closest('.glass-card, .dock-btn-round, .shortcut-item, button');
+        if (clickable) {
+            clickable.style.transform = 'scale(0.92) translateZ(-15px)';
+            setTimeout(() => { clickable.style.transform = ''; }, 130);
+            clickable.click(); // Dispara o evento de clique do elemento HTML
         }
+        lastClickTime = 0;
     } else {
-        lastHandX = null; // Limpa rastro ao remover a mão do campo de visão
+        lastClickTime = currentTime;
+        const clickable = elementAtCursor.closest('.glass-card, .dock-btn-round, .shortcut-item');
+        if (clickable) {
+            document.querySelectorAll('.hud-hover').forEach(el => el.classList.remove('hud-hover'));
+            clickable.classList.add('hud-hover');
+        }
     }
 }
 
-// Ouvintes de upload e arrasto físico de mídias locais
-filePicker.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    activeFileObject = { name: file.name, type: file.type, url: URL.createObjectURL(file) };
-    if (currentWorkspace === 'media' || currentWorkspace === 'files') {
-        loadWorkspace(currentWorkspace);
+function updateVirtualCursor(x, y) {
+    let pointer = document.getElementById('spatial-pointer');
+    if (!pointer) {
+        pointer = document.createElement('div');
+        pointer.id = 'spatial-pointer';
+        document.body.appendChild(pointer);
     }
-});
+    pointer.style.left = `${x}px`;
+    pointer.style.top = `${y}px`;
+    if (isPinchedRight) pointer.classList.add('clicking');
+    else pointer.classList.remove('clicking');
+}
 
-// Inicializador da Engine do MediaPipe
+function removeVirtualCursor() {
+    const pointer = document.getElementById('spatial-pointer');
+    if (pointer) pointer.remove();
+}
+
+/**
+ * Injeta dinamicamente a interface do Workspace ativo
+ */
+function loadWorkspace(targetWS) {
+    currentWorkspace = targetWS;
+    showOSToast(`WORKSPACE ${targetWS.toUpperCase()}`);
+
+    // Injeção de Template HTML Limpo e Responsivo
+    if (targetWS === "home") {
+        systemViewport.innerHTML = `
+            <div class="home-layout">
+                <div class="glass-card home-dashboard">
+                    <div class="clock-display">04:14</div>
+                    <div class="dash-row"><span>SISTEMA</span><span>OS SPATIAL v3</span></div>
+                    <div class="dash-row"><span>ZOOM ATUAL</span><span>${Math.round(globalZoomScale * 100)}%</span></div>
+                </div>
+                <div class="home-shortcuts">
+                    <div class="glass-card shortcut-item" onclick="loadWorkspace('files')">
+                        <div class="shortcut-icon">📤</div><div class="shortcut-label">Enviar Arquivos</div>
+                    </div>
+                    <div class="glass-card shortcut-item" onclick="loadWorkspace('search')">
+                        <div class="shortcut-icon">🌐</div><div class="shortcut-label">Google Search</div>
+                    </div>
+                </div>
+            </div>`;
+    } 
+    else if (targetWS === "files") {
+        systemViewport.innerHTML = `
+            <div class="media-player-container">
+                <div class="glass-card" style="flex-grow:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-style:dashed;">
+                    <div style="font-size:42px; margin-bottom:12px;">📁</div>
+                    <h3 style="font-size:14px; letter-spacing:1px; margin-bottom:8px;">CONCENTRADOR DE ARQUIVOS</h3>
+                    <p style="font-size:11px; color:rgba(255,255,255,0.5); text-align:center;">Dê duplo clique virtual abaixo para fazer upload</p>
+                    <input type="file" id="hidden-picker" style="display:none;" onchange="showOSToast('Arquivo Pronto!')">
+                    <button class="glass-card" style="margin-top:15px; padding:10px 20px; color:#fff;" onclick="document.getElementById('hidden-picker').click()">PROCURAR</button>
+                </div>
+            </div>`;
+    }
+    else if (targetWS === "search") {
+        systemViewport.innerHTML = `
+            <div class="browser-container glass-card">
+                <div class="browser-bar">
+                    <input type="text" class="browser-input" id="browser-url-field" value="https://www.google.com/search?igu=1">
+                    <button class="glass-card" style="padding:0 15px; color:#fff;" onclick="executeSpatialSearch()">IR</button>
+                </div>
+                <div class="browser-iframe-wrapper">
+                    <iframe id="spatial-iframe" src="https://www.google.com/search?igu=1"></iframe>
+                </div>
+            </div>`;
+    }
+    applyGlobalZoomUI(globalZoomScale);
+}
+
+function executeSpatialSearch() {
+    const q = document.getElementById('browser-url-field').value;
+    const f = document.getElementById('spatial-iframe');
+    f.src = q.startsWith('http') ? q : `https://www.google.com/search?q=${encodeURIComponent(q)}&igu=1`;
+}
+
+function showOSToast(text) {
+    const toast = document.getElementById('workspace-overlay-toast');
+    if (toast) {
+        toast.innerText = text;
+        toast.style.opacity = '1';
+        setTimeout(() => { toast.style.opacity = '0'; }, 1200);
+    }
+}
+
+// Configuração e Inicialização do Pipeline MediaPipe Hands
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.65, minTrackingConfidence: 0.65 });
+hands.setOptions({
+    maxNumHands: 2, // CRUCIAL para capturar ambas as mãos ao mesmo tempo para o zoom
+    modelComplexity: 1,
+    minDetectionConfidence: 0.65,
+    minTrackingConfidence: 0.65
+});
 hands.onResults(onResults);
 
 const camera = new Camera(videoElement, {
@@ -364,9 +310,5 @@ const camera = new Camera(videoElement, {
     width: 1280, height: 720, facingMode: "environment"
 });
 
-// Boot Inicializador do Sistema Operacional Espacial
-window.addEventListener('resize', () => { canvasElement.width = window.innerWidth; canvasElement.height = window.innerHeight; });
-canvasElement.width = window.innerWidth; canvasElement.height = window.innerHeight;
-
-loadWorkspace("home");
-camera.start();
+window.onload = () => { initOS(); camera.start(); };
+    
