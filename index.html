@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Vision HUD - MR Interface Futurista</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <style>
         * {
             margin: 0;
@@ -27,6 +25,64 @@
             left: 0;
         }
 
+        /* Background futurista animado (fallback quando câmera falha) */
+        .animated-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0e1a 0%, #0f1422 25%, #0a0a1a 50%, #0d1225 75%, #0a0e1a 100%);
+            z-index: 0;
+        }
+
+        .animated-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 191, 255, 0.03) 2px,
+                rgba(0, 191, 255, 0.03) 4px
+            );
+            pointer-events: none;
+        }
+
+        .animated-bg::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 40%, rgba(0, 191, 255, 0.08) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 191, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 191, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
         #webcam {
             position: absolute;
             top: 0;
@@ -35,17 +91,6 @@
             height: 100%;
             object-fit: cover;
             z-index: 0;
-            transform: scaleX(-1);
-        }
-
-        #webcam-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
             display: none;
         }
 
@@ -70,34 +115,11 @@
             left: 0;
         }
 
-        .glass-panel, .side-panel, .bottom-dock, .top-right-menu, .vertical-slider, .action-btn, .file-trigger, .trash-btn, .zoom-control, .volume-control {
+        .glass-card, .bottom-dock, .top-right-menu, .right-slider-panel {
             pointer-events: auto;
         }
 
-        .glass-panel {
-            background: rgba(12, 20, 35, 0.3);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 191, 255, 0.35);
-            border-radius: 20px;
-            box-shadow: 0 0 15px rgba(0, 191, 255, 0.2), inset 0 0 10px rgba(0, 191, 255, 0.1);
-            transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-        }
-
-        .glass-panel:hover {
-            border-color: rgba(0, 191, 255, 0.8);
-            box-shadow: 0 0 22px rgba(0, 191, 255, 0.5);
-            transform: scale(1.02);
-        }
-
-        .action-btn, .file-trigger, .trash-btn, .zoom-btn, .volume-btn, .menu-btn, .vr-btn, .settings-btn, .dock-item {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            cursor: pointer;
-        }
-
-        .action-btn:active, .file-trigger:active, .trash-btn:active, .dock-item:active {
-            transform: scale(0.95);
-        }
-
+        /* Estilos dos componentes (mantidos da versão anterior) */
         .left-sidebar {
             position: absolute;
             left: 16px;
@@ -126,6 +148,10 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
 
+        .glass-card:active {
+            transform: scale(0.95);
+        }
+
         .glass-card span:first-child {
             font-size: 26px;
             filter: drop-shadow(0 0 3px #00BFFF);
@@ -150,6 +176,24 @@
             margin-top: 2px;
         }
 
+        .slider-horizontal {
+            width: 60px;
+            height: 3px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+            margin-top: 5px;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .slider-fill {
+            height: 3px;
+            background: #00BFFF;
+            border-radius: 4px;
+            box-shadow: 0 0 4px cyan;
+            width: 70%;
+        }
+
         .top-right-menu {
             position: absolute;
             top: 16px;
@@ -170,6 +214,10 @@
             color: #eef5ff;
             transition: 0.2s;
             cursor: pointer;
+        }
+
+        .menu-icon:active, .vr-icon:active, .settings-icon:active {
+            transform: scale(0.9);
         }
 
         .right-slider-panel {
@@ -220,7 +268,6 @@
             transform: translate(-50%, -50%);
             top: 50%;
             box-shadow: 0 0 12px #00BFFF;
-            transition: top 0.05s linear;
             cursor: grab;
         }
 
@@ -261,6 +308,10 @@
             border-radius: 40px;
         }
 
+        .dock-item:active {
+            transform: scale(0.9);
+        }
+
         .dock-item span:first-child {
             font-size: 24px;
             color: #eef5ff;
@@ -287,56 +338,36 @@
             cursor: pointer;
         }
 
+        .main-button:active {
+            transform: scale(0.95);
+        }
+
         .main-button span {
             font-size: 32px;
             color: white;
             filter: drop-shadow(0 0 4px black);
         }
 
-        .main-button:active {
-            transform: scale(0.95);
-        }
-
-        .slider-horizontal {
-            width: 60px;
-            height: 3px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 4px;
-            margin-top: 5px;
-            position: relative;
-        }
-        
-        .slider-fill {
-            height: 3px;
-            background: #00BFFF;
-            border-radius: 4px;
-            box-shadow: 0 0 4px cyan;
-        }
-
         .file-input-hidden {
             display: none;
         }
 
-        .hand-hover {
-            filter: drop-shadow(0 0 12px #00ffff);
-            border-color: cyan !important;
-        }
-
-        .camera-error {
+        .status-badge {
             position: absolute;
             bottom: 100px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: #ff4444;
-            padding: 12px 20px;
-            border-radius: 12px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            color: #00BFFF;
+            padding: 8px 16px;
+            border-radius: 20px;
             font-family: 'Orbitron', monospace;
-            font-size: 12px;
+            font-size: 11px;
             z-index: 100;
-            text-align: center;
-            border: 1px solid #ff4444;
+            border: 1px solid #00BFFF;
             pointer-events: none;
+            white-space: nowrap;
         }
 
         @media (max-width: 700px) {
@@ -348,13 +379,15 @@
             .main-button span { font-size: 28px; }
             .top-right-menu { padding: 8px 16px; gap: 12px; }
             .right-slider-panel { width: 50px; }
+            .status-badge { font-size: 9px; white-space: nowrap; bottom: 90px; }
         }
     </style>
 </head>
 <body>
 
+    <div class="animated-bg"></div>
+    <div class="grid-overlay"></div>
     <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="webcam-canvas"></canvas>
     <div class="overlay-fx"></div>
 
     <div class="hud-container">
@@ -362,33 +395,33 @@
             <div class="glass-card" id="volume-btn">
                 <span>🔊</span>
                 <span class="label">VOLUME</span>
-                <div class="slider-horizontal" id="volume-slider-bg">
-                    <div class="slider-fill" id="volume-fill" style="width: 70%;"></div>
+                <div class="slider-horizontal" id="volume-slider">
+                    <div class="slider-fill" id="volume-fill"></div>
                 </div>
                 <span class="value-indicator" id="volume-value">70%</span>
             </div>
             <div class="glass-card" id="zoom-btn">
                 <span>🔍</span>
                 <span class="label">ZOOM</span>
-                <div class="slider-horizontal" id="zoom-slider-bg">
-                    <div class="slider-fill" id="zoom-fill" style="width: 50%;"></div>
+                <div class="slider-horizontal" id="zoom-slider">
+                    <div class="slider-fill" id="zoom-fill"></div>
                 </div>
                 <span class="value-indicator" id="zoom-value">50%</span>
             </div>
-            <div class="glass-card trash-btn" id="trash-btn">
+            <div class="glass-card" id="trash-btn">
                 <span>🗑️</span>
                 <span class="label">LIXEIRA</span>
             </div>
-            <div class="glass-card file-trigger" id="open-file-btn">
+            <div class="glass-card" id="open-file-btn">
                 <span>📂</span>
                 <span class="label">ABRIR ARQUIVO</span>
             </div>
         </div>
 
         <div class="top-right-menu">
-            <div class="menu-icon action-btn" id="menu-icon">☰</div>
-            <div class="vr-icon action-btn" id="vr-icon">🥽</div>
-            <div class="settings-icon action-btn" id="settings-icon">⚙️</div>
+            <div class="menu-icon" id="menu-icon">☰</div>
+            <div class="vr-icon" id="vr-icon">🥽</div>
+            <div class="settings-icon" id="settings-icon">⚙️</div>
         </div>
 
         <div class="right-slider-panel">
@@ -422,114 +455,161 @@
         </div>
     </div>
 
+    <div id="status-badge" class="status-badge">🌀 HUD ATIVO</div>
+
     <input type="file" id="file-input" accept="image/*,video/*,audio/*" class="file-input-hidden" multiple>
 
     <script>
-        // Elementos da UI
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('webcam-canvas');
+        // Variáveis globais
         let currentVolume = 0.7;
         let currentZoom = 0.5;
         let mediaElements = [];
+        let cameraActive = false;
         
+        // Elementos DOM
         const volumeFill = document.getElementById('volume-fill');
-        const volumeValueSpan = document.getElementById('volume-value');
+        const volumeValue = document.getElementById('volume-value');
         const zoomFill = document.getElementById('zoom-fill');
-        const zoomValueSpan = document.getElementById('zoom-value');
-        const trashBtn = document.getElementById('trash-btn');
-        const openFileBtn = document.getElementById('open-file-btn');
-        const fileInput = document.getElementById('file-input');
-        const verticalSliderDiv = document.getElementById('vertical-slider');
-        const sliderThumb = document.getElementById('slider-thumb');
-        const holoValueSpan = document.getElementById('holo-value');
+        const zoomValue = document.getElementById('zoom-value');
+        const statusBadge = document.getElementById('status-badge');
+        const videoElement = document.getElementById('webcam');
         
+        // Funções de UI
         function updateVolumeUI() {
             let percent = Math.round(currentVolume * 100);
             volumeFill.style.width = `${percent}%`;
-            volumeValueSpan.innerText = `${percent}%`;
-            document.querySelectorAll('video').forEach(vid => { if(vid && vid !== videoElement) vid.volume = currentVolume; });
+            volumeValue.innerText = `${percent}%`;
+            document.querySelectorAll('video:not(#webcam)').forEach(vid => { if(vid) vid.volume = currentVolume; });
         }
         
         function updateZoomUI() {
             let percent = Math.round(currentZoom * 100);
             zoomFill.style.width = `${percent}%`;
-            zoomValueSpan.innerText = `${percent}%`;
-            videoElement.style.transform = `scale(${0.8 + currentZoom * 0.6})`;
+            zoomValue.innerText = `${percent}%`;
+            if (cameraActive && videoElement.srcObject) {
+                videoElement.style.transform = `scale(${0.8 + currentZoom * 0.6})`;
+            }
         }
         
-        function setupControls() {
+        // Controles de slider
+        function setupSliders() {
             const volumeCard = document.getElementById('volume-btn');
             const zoomCard = document.getElementById('zoom-btn');
             
-            function handleSliderDrag(event, type) {
-                event.preventDefault();
-                const rect = (type === 'volume') ? volumeCard.getBoundingClientRect() : zoomCard.getBoundingClientRect();
-                const onMove = (moveEvent) => {
-                    let clientX = moveEvent.clientX ?? (moveEvent.touches ? moveEvent.touches[0].clientX : 0);
+            function attachSlider(card, type) {
+                const sliderDiv = card.querySelector('.slider-horizontal');
+                let isDragging = false;
+                
+                const updateValue = (clientX) => {
+                    const rect = card.getBoundingClientRect();
                     let relativeX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-                    if(type === 'volume') {
+                    if (type === 'volume') {
                         currentVolume = relativeX;
                         updateVolumeUI();
-                        document.querySelectorAll('video').forEach(v => { if(v && v !== videoElement) v.volume = currentVolume; });
+                        document.querySelectorAll('video:not(#webcam)').forEach(v => { if(v) v.volume = currentVolume; });
                     } else {
                         currentZoom = relativeX;
                         updateZoomUI();
                     }
                 };
-                const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                    window.removeEventListener('touchmove', onMove);
-                    window.removeEventListener('touchend', onUp);
+                
+                const onMove = (e) => {
+                    if (!isDragging) return;
+                    e.preventDefault();
+                    const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : 0);
+                    updateValue(clientX);
                 };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-                window.addEventListener('touchmove', onMove);
-                window.addEventListener('touchend', onUp);
+                
+                const onStart = (e) => {
+                    isDragging = true;
+                    e.preventDefault();
+                    const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : 0);
+                    updateValue(clientX);
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onStop);
+                    window.addEventListener('touchmove', onMove);
+                    window.addEventListener('touchend', onStop);
+                };
+                
+                const onStop = () => {
+                    isDragging = false;
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onStop);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onStop);
+                };
+                
+                sliderDiv.addEventListener('mousedown', onStart);
+                sliderDiv.addEventListener('touchstart', onStart);
             }
             
-            volumeCard.addEventListener('mousedown', (e) => handleSliderDrag(e, 'volume'));
-            volumeCard.addEventListener('touchstart', (e) => handleSliderDrag(e, 'volume'));
-            zoomCard.addEventListener('mousedown', (e) => handleSliderDrag(e, 'zoom'));
-            zoomCard.addEventListener('touchstart', (e) => handleSliderDrag(e, 'zoom'));
+            attachSlider(volumeCard, 'volume');
+            attachSlider(zoomCard, 'zoom');
         }
         
+        // Slider vertical
         let verticalValue = 0.5;
         function updateVerticalSlider(value) {
             verticalValue = Math.min(1, Math.max(0, value));
-            let containerHeight = verticalSliderDiv.clientHeight;
-            let thumbTop = (1 - verticalValue) * containerHeight;
-            sliderThumb.style.top = `${thumbTop}px`;
-            holoValueSpan.innerText = verticalValue.toFixed(2);
-            document.querySelector('.hud-container').style.filter = `brightness(${0.8 + verticalValue * 0.4})`;
+            const container = document.getElementById('vertical-slider');
+            const thumb = document.getElementById('slider-thumb');
+            const containerHeight = container.clientHeight;
+            const thumbTop = (1 - verticalValue) * containerHeight;
+            thumb.style.top = `${thumbTop}px`;
+            document.getElementById('holo-value').innerText = verticalValue.toFixed(2);
+            // Efeito visual no HUD
+            document.querySelector('.hud-container').style.opacity = 0.7 + verticalValue * 0.3;
         }
         
         function initVerticalSlider() {
             updateVerticalSlider(0.5);
-            const onDrag = (e) => {
-                e.preventDefault();
-                const rect = verticalSliderDiv.getBoundingClientRect();
-                let clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+            const slider = document.getElementById('vertical-slider');
+            const thumb = document.getElementById('slider-thumb');
+            let isDragging = false;
+            
+            const updateFromY = (clientY) => {
+                const rect = slider.getBoundingClientRect();
                 let yNorm = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
                 updateVerticalSlider(1 - yNorm);
             };
-            sliderThumb.addEventListener('mousedown', (e) => { e.preventDefault(); window.addEventListener('mousemove', onDrag); window.addEventListener('mouseup', () => window.removeEventListener('mousemove', onDrag)); });
-            sliderThumb.addEventListener('touchstart', (e) => { e.preventDefault(); window.addEventListener('touchmove', onDrag); window.addEventListener('touchend', () => window.removeEventListener('touchmove', onDrag)); });
-            verticalSliderDiv.addEventListener('click', (e) => { const rect = verticalSliderDiv.getBoundingClientRect(); let clientY = e.clientY; let yNorm = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)); updateVerticalSlider(1 - yNorm); });
+            
+            const onMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+                updateFromY(clientY);
+            };
+            
+            const onStart = (e) => {
+                isDragging = true;
+                e.preventDefault();
+                const clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+                updateFromY(clientY);
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onStop);
+                window.addEventListener('touchmove', onMove);
+                window.addEventListener('touchend', onStop);
+            };
+            
+            thumb.addEventListener('mousedown', onStart);
+            thumb.addEventListener('touchstart', onStart);
+            slider.addEventListener('click', (e) => {
+                const rect = slider.getBoundingClientRect();
+                let clientY = e.clientY;
+                let yNorm = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+                updateVerticalSlider(1 - yNorm);
+            });
+            
+            const onStop = () => {
+                isDragging = false;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onStop);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onStop);
+            };
         }
         
-        trashBtn.addEventListener('click', () => {
-            mediaElements.forEach(el => { if(el.parentNode) el.remove(); });
-            mediaElements = [];
-        });
-        
-        openFileBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            files.forEach(file => handleMediaFile(file));
-            fileInput.value = '';
-        });
-        
+        // Gerenciamento de mídia
         function handleMediaFile(file) {
             const url = URL.createObjectURL(file);
             if(file.type.startsWith('image/')) {
@@ -545,6 +625,8 @@
                 img.style.zIndex = '15';
                 document.body.appendChild(img);
                 mediaElements.push(img);
+                statusBadge.innerText = '✅ IMAGEM CARREGADA';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 2000);
             } else if(file.type.startsWith('video/')) {
                 const video = document.createElement('video');
                 video.src = url;
@@ -559,9 +641,68 @@
                 video.volume = currentVolume;
                 document.body.appendChild(video);
                 mediaElements.push(video);
+                statusBadge.innerText = '🎬 VÍDEO CARREGADO';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 2000);
             }
         }
         
+        // Eventos dos botões
+        document.getElementById('trash-btn').addEventListener('click', () => {
+            mediaElements.forEach(el => { if(el && el.parentNode) el.remove(); });
+            mediaElements = [];
+            statusBadge.innerText = '🗑️ MÍDIAS REMOVIDAS';
+            setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 2000);
+        });
+        
+        document.getElementById('open-file-btn').addEventListener('click', () => document.getElementById('file-input').click());
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            files.forEach(file => handleMediaFile(file));
+            e.target.value = '';
+        });
+        
+        document.getElementById('main-action-btn').addEventListener('click', () => {
+            let activeVideo = mediaElements.find(m => m.tagName === 'VIDEO' && m.paused !== undefined);
+            if(activeVideo) { 
+                activeVideo.paused ? activeVideo.play() : activeVideo.pause();
+                statusBadge.innerText = activeVideo.paused ? '⏸️ PAUSADO' : '▶️ REPRODUZINDO';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 1500);
+            } else {
+                statusBadge.innerText = '📁 NENHUM VÍDEO ATIVO';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 1500);
+            }
+        });
+        
+        document.getElementById('refresh-btn').addEventListener('click', () => location.reload());
+        document.getElementById('menu-icon').addEventListener('click', () => alert('🔮 MENU FUTURISTA\n\n- Visão Holográfica\n- Modo Imersivo\n- Configurações Avançadas'));
+        document.getElementById('vr-icon').addEventListener('click', () => alert('🥽 MODO VR\n\nAtive seus óculos de realidade virtual para uma experiência completa.'));
+        document.getElementById('settings-icon').addEventListener('click', () => alert('⚙️ CONFIGURAÇÕES\n\nBrilho: 85%\nContraste: Auto\nEfeitos: Holográfico'));
+        document.getElementById('back-btn').addEventListener('click', () => console.log("Voltar"));
+        document.getElementById('prev-btn').addEventListener('click', () => console.log("Anterior"));
+        document.getElementById('next-btn').addEventListener('click', () => console.log("Próximo"));
+        
+        // Tentativa de acesso à câmera (silenciosa, sem erro visível)
+        async function tryInitCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { exact: 'environment' } },
+                    audio: false 
+                });
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                cameraActive = true;
+                statusBadge.innerText = '📷 CÂMERA ATIVA';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 2000);
+            } catch (err) {
+                console.log('Câmera não disponível:', err.message);
+                videoElement.style.display = 'none';
+                cameraActive = false;
+                statusBadge.innerText = '🎨 MODO DEMO ATIVO';
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 3000);
+            }
+        }
+        
+        // Drag and drop
         window.addEventListener('dragover', (e) => { e.preventDefault(); });
         window.addEventListener('drop', (e) => {
             e.preventDefault();
@@ -569,128 +710,21 @@
             files.forEach(f => handleMediaFile(f));
         });
         
-        // Inicialização da câmera com tratamento de erro melhorado
-        async function initCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' },
-                    audio: false 
-                });
-                videoElement.srcObject = stream;
-                videoElement.style.display = 'block';
-                canvasElement.style.display = 'none';
-                
-                // Inicializar MediaPipe após a câmera estar rodando
-                await initMediaPipe();
-                
-            } catch (err) {
-                console.error('Erro ao acessar câmera:', err);
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'camera-error';
-                errorDiv.innerHTML = '📷 Não foi possível acessar a câmera.<br>Verifique as permissões no seu navegador.';
-                document.body.appendChild(errorDiv);
-                setTimeout(() => errorDiv.remove(), 5000);
-                
-                // Fallback: imagem de placeholder
-                videoElement.style.display = 'none';
-                canvasElement.style.display = 'block';
-                canvasElement.style.filter = 'brightness(0.3)';
-                const ctx = canvasElement.getContext('2d');
-                canvasElement.width = window.innerWidth;
-                canvasElement.height = window.innerHeight;
-                ctx.fillStyle = '#0a0a2a';
-                ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-                ctx.fillStyle = '#00BFFF';
-                ctx.font = '20px Orbitron';
-                ctx.textAlign = 'center';
-                ctx.fillText('📷 CÂMERA NÃO DISPONÍVEL', canvasElement.width/2, canvasElement.height/2);
-                ctx.font = '14px Inter';
-                ctx.fillText('Verifique as permissões do navegador', canvasElement.width/2, canvasElement.height/2 + 40);
-            }
-        }
-        
-        async function initMediaPipe() {
-            if (!videoElement.srcObject) return;
-            
-            const hands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-            });
-            
-            hands.setOptions({
-                maxNumHands: 1,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-            
-            hands.onResults((results) => {
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    const landmarks = results.multiHandLandmarks[0];
-                    const thumbTip = landmarks[4];
-                    const indexTip = landmarks[8];
-                    const distance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-                    
-                    if (distance < 0.05) {
-                        document.getElementById('main-action-btn').click();
-                    }
-                    
-                    // Detectar hover nos botões
-                    const handX = thumbTip.x * window.innerWidth;
-                    const handY = thumbTip.y * window.innerHeight;
-                    const elements = document.querySelectorAll('.glass-card, .dock-item, .main-button, .menu-icon, .vr-icon, .settings-icon');
-                    
-                    elements.forEach(el => {
-                        const rect = el.getBoundingClientRect();
-                        if (handX >= rect.left && handX <= rect.right && handY >= rect.top && handY <= rect.bottom) {
-                            el.classList.add('hand-hover');
-                        } else {
-                            el.classList.remove('hand-hover');
-                        }
-                    });
-                }
-            });
-            
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({ image: videoElement });
-                },
-                width: 1280,
-                height: 720
-            });
-            camera.start();
-        }
-        
-        // Eventos dos botões
-        document.getElementById('main-action-btn').addEventListener('click', () => {
-            let activeVideo = mediaElements.find(m => m.tagName === 'VIDEO');
-            if(activeVideo) { activeVideo.paused ? activeVideo.play() : activeVideo.pause(); }
-        });
-        document.getElementById('back-btn').addEventListener('click', () => console.log("Voltar"));
-        document.getElementById('prev-btn').addEventListener('click', () => console.log("Anterior"));
-        document.getElementById('next-btn').addEventListener('click', () => console.log("Próximo"));
-        document.getElementById('refresh-btn').addEventListener('click', () => location.reload());
-        document.getElementById('menu-icon').addEventListener('click', () => alert("Menu Futurista"));
-        document.getElementById('vr-icon').addEventListener('click', () => alert("Modo VR"));
-        document.getElementById('settings-icon').addEventListener('click', () => alert("Configurações"));
-        
-        function resizeCanvas() {
-            canvasElement.width = window.innerWidth;
-            canvasElement.height = window.innerHeight;
-            if (canvasElement.style.display !== 'none') {
-                const ctx = canvasElement.getContext('2d');
-                ctx.fillStyle = '#0a0a2a';
-                ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-            }
-        }
-        
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // Inicialização
         updateVolumeUI();
         updateZoomUI();
-        setupControls();
+        setupSliders();
         initVerticalSlider();
-        initCamera();
+        tryInitCamera();
+        
+        // Atualizar status badge periodicamente (apenas para manter)
+        setInterval(() => {
+            if (statusBadge.innerText === '🌀 HUD ATIVO') return;
+            // reset após 3 segundos se não for mensagem permanente
+            if (!statusBadge.innerText.includes('HUD')) {
+                setTimeout(() => { if(statusBadge) statusBadge.innerText = '🌀 HUD ATIVO'; }, 2000);
+            }
+        }, 5000);
     </script>
 </body>
 </html>
-       
