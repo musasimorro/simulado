@@ -4,6 +4,9 @@
     --neon-danger: #FF3333;
     --glass-bg: rgba(10, 25, 50, 0.25);
     --glass-border: rgba(0, 191, 255, 0.3);
+    
+    /* Regra de Ouro Proposta: Respeitando entalhes e UI do navegador nativo */
+    --safe-top: calc(max(80px, env(safe-area-inset-top)) + 40px);
 }
 
 body {
@@ -25,65 +28,42 @@ body {
     box-sizing: border-box;
 }
 
-#webcam {
+#webcam, #output_canvas {
     position: absolute;
     width: 100%;
     height: 100%;
     object-fit: cover;
     z-index: 1;
-    opacity: 0;
 }
+#output_canvas { z-index: 2; }
 
-#output_canvas {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 2;
-}
-
-/* Base de Vidro Espacial (Glassmorphism) */
+/* Base Glassmorphism */
 .glass-card {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), 0 0 15px var(--neon-glow);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 15px var(--neon-glow);
     z-index: 10;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Hover e Estados Ativos Dinâmicos por Código */
 .glass-card.hud-hover, .hud-btn-round.hud-hover, .hud-btn-main.hud-hover {
     transform: scale(1.05);
     border-color: #ffffff;
     box-shadow: 0 0 25px rgba(255, 255, 255, 0.6), inset 0 0 10px var(--neon-blue);
 }
 
-/* Status Superior */
-#status {
-    position: absolute;
-    top: 25px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 24px;
-    font-size: 12px;
-    letter-spacing: 2px;
-    font-weight: bold;
-    border-radius: 50px;
-    color: var(--neon-blue);
-}
-
-/* Retículo Central */
+/* Retículo central com design holográfico sutil */
 .reticle {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 40px;
-    height: 40px;
-    border: 2px solid var(--neon-border);
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(0, 191, 255, 0.25);
     border-radius: 50%;
     z-index: 5;
     pointer-events: none;
@@ -92,22 +72,35 @@ body {
     justify-content: center;
 }
 .reticle-core {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
     background: var(--neon-blue);
     border-radius: 50%;
-    box-shadow: 0 0 10px var(--neon-blue);
+    box-shadow: 0 0 8px var(--neon-blue);
 }
 
-/* 1. PAINEL SUPERIOR DIREITO */
-.panel-top-right {
+/* 1. PAINEL SUPERIOR (Unificado, simulando o VisionOS) */
+.panel-top {
     position: absolute;
-    top: 25px;
-    right: 25px;
+    top: var(--safe-top);
+    right: 40px;
     display: flex;
+    align-items: center;
     gap: 15px;
-    padding: 8px 16px;
-    border-radius: 15px;
+    padding: 10px 20px;
+    border-radius: 40px;
+}
+#status {
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-weight: bold;
+    color: var(--neon-blue);
+    text-shadow: 0 0 5px var(--neon-blue);
+}
+.panel-top .divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.2);
 }
 .hud-btn {
     background: transparent;
@@ -115,71 +108,67 @@ body {
     color: #fff;
     font-size: 16px;
     cursor: pointer;
-    padding: 4px 8px;
-    transition: transform 0.2s;
+    padding: 2px 6px;
 }
 
-/* 2. PAINEL LATERAL ESQUERDO */
+/* 2. PAINEL LATERAL ESQUERDO (Abaixo dos 15% iniciais da tela) */
 .panel-left {
     position: absolute;
-    left: 25px;
-    top: 15%;
+    left: 40px;
+    top: calc(var(--safe-top) + 80px);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    width: 180px;
+    gap: 16px;
+    width: 170px;
 }
 .hud-card {
-    padding: 15px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
 }
 .card-header {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
     color: var(--neon-blue);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 .hud-display {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
     text-align: center;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
 }
 
-/* Sliders Horizontais */
 .slider-container-horizontal {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
-.step-icon { font-size: 12px; opacity: 0.8; }
+.step-icon { font-size: 11px; opacity: 0.7; }
 .hud-track {
     flex-grow: 1;
-    height: 6px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
+    height: 4px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
     overflow: hidden;
     position: relative;
 }
 .hud-bar {
     height: 100%;
     background: var(--neon-blue);
-    box-shadow: 0 0 8px var(--neon-blue);
+    box-shadow: 0 0 6px var(--neon-blue);
 }
 
-/* Botões de Ação Simples */
 .trigger-btn {
     align-items: center;
     justify-content: center;
-    padding: 18px;
-    text-align: center;
+    padding: 16px;
     cursor: pointer;
 }
 .trigger-btn .card-label {
-    font-size: 10px;
-    margin-top: 6px;
+    font-size: 9px;
+    margin-top: 5px;
     font-weight: bold;
     letter-spacing: 1px;
 }
@@ -188,19 +177,24 @@ body {
     box-shadow: 0 0 20px rgba(255, 51, 51, 0.4);
 }
 
-/* 3. PAINEL LATERAL DIREITO */
+/* 3. PAINEL LATERAL DIREITO (Perfeitamente Centralizado Verticalmente) */
 .panel-right {
     position: absolute;
-    right: 25px;
-    top: 25%;
-    bottom: 25%;
-    width: 50px;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 320px;
+    width: 48px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: space-between;
-    padding: 15px 0;
+    padding: 20px 0;
     border-radius: 30px;
+}
+.panel-right.hud-hover {
+    /* Mantém a centralização em Y ao aplicar o scale de hover global */
+    transform: translateY(-50%) scale(1.05);
 }
 .hud-btn-sm {
     background: transparent;
@@ -208,12 +202,13 @@ body {
     color: #fff;
     font-weight: bold;
     font-size: 16px;
+    cursor: pointer;
 }
 .hud-track-vertical {
-    width: 6px;
+    width: 4px;
     height: 70%;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
     position: relative;
     overflow: hidden;
 }
@@ -222,52 +217,47 @@ body {
     position: absolute;
     bottom: 0;
     background: var(--neon-blue);
-    box-shadow: 0 0 8px var(--neon-blue);
+    box-shadow: 0 0 6px var(--neon-blue);
 }
 
 /* 4. DOCK INFERIOR CENTRAL */
 .panel-bottom {
     position: absolute;
-    bottom: 35px;
+    bottom: max(30px, env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 25px;
-    padding: 12px 35px;
+    gap: 20px;
+    padding: 10px 30px;
     border-radius: 40px;
 }
 .hud-btn-round {
-    width: 42px;
-    height: 42px;
-    background: rgba(255, 255, 255, 0.05);
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 50%;
     color: #fff;
-    font-size: 16px;
+    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
 }
 .hud-btn-main {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
     background: transparent;
     border: 2px solid var(--neon-blue);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 15px var(--neon-glow);
-    transition: all 0.2s;
+    box-shadow: 0 0 12px var(--neon-glow);
 }
 .main-core {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     background: #fff;
     border-radius: 50%;
 }
-
-#file_input { display: none; }
-
