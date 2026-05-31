@@ -1,66 +1,69 @@
 /* ==========================================================================
-   MR SPATIAL OS - CORE INTERACTION INTERFACE (CSS DESIGN SYSTEM v4.0)
+   MR SPATIAL OS - CORE INTERACTION INTERFACE (CSS DESIGN SYSTEM v5.0)
    ========================================================================== */
 
-/* Configuração Geral e Reset do Sistema */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
 }
 
 body {
-    background-color: #000; /* Fundo de segurança caso a câmara falhe */
+    background-color: #000;
     overflow: hidden;
     width: 100vw;
     height: 100vh;
 }
 
 /* --------------------------------------------------------------------------
-   CAMADAS DE HARDWARE (CÂMERA E CANVAS) - CORRIGIDO
+   ARQUITETURA DE CAMADAS (Z-INDEX REALIDADE MISTA)
    -------------------------------------------------------------------------- */
 
-/* Oculta o elemento de vídeo bruto para não quebrar o layout */
+/* CAMADA 1: O vídeo bruto precisa estar ativo e renderizando para a Camera funcionar */
 #webcam {
-    display: none;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    z-index: 1;
 }
 
-/* O Canvas ocupa toda a tela ao fundo desenhando a Realidade Misturada */
+/* CAMADA 2: O Canvas desenha o esqueleto da mão exatamente por cima do vídeo */
 #output_canvas {
     position: fixed;
     left: 0;
     top: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 1; /* Fica estritamente na base */
     object-fit: cover;
-    transform: scaleX(1); /* Mantém a orientação natural da câmara traseira */
-    pointer-events: none; /* Não bloqueia os cliques nos botões */
+    z-index: 2;
+    pointer-events: none; /* Não bloqueia cliques nos botões */
 }
 
-/* Container do Sistema Operacional flutua à frente da câmara */
+/* CAMADA 10: O teu painel de controle azul flutua sobre a câmera */
 #workspace-viewport {
     position: fixed;
     left: 0;
     top: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 10; /* Fica por cima do canvas da câmara */
-    background: transparent !important; /* FORÇA TRANSPARÊNCIA PARA EXIBIR A CÂMERA */
+    z-index: 10;
+    background: transparent !important; /* Remove o fundo preto e revela o vídeo/canvas */
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    pointer-events: none; /* Permite passagem para elementos específicos */
+    pointer-events: none; 
 }
 
 /* --------------------------------------------------------------------------
-   INTERFACES ESPACIAIS (HUD WRAPPER & CARDS AZUIS)
+   ESTILIZAÇÃO DOS COMPONENTES HUD
    -------------------------------------------------------------------------- */
 
-/* O wrapper que agrupa os painéis e responde ao Pinch Zoom */
 .spatial-hud-wrapper {
     position: relative;
     width: 90%;
@@ -69,36 +72,29 @@ body {
     justify-content: space-between;
     align-items: center;
     background: transparent;
-    pointer-events: auto; /* Reativa interações para os elementos internos */
-    transition: transform 0.1s ease-out; /* Suaviza o zoom das duas mãos */
+    pointer-events: auto; /* Permite interagir com os cards */
+    transition: transform 0.1s ease-out;
 }
 
-/* Estilização Neon Azul VisionOS para os teus Cards */
 .hud-card {
-    background: rgba(10, 25, 50, 0.55);
+    background: rgba(10, 25, 50, 0.65);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 2px solid #00bfff;
     border-radius: 24px;
     padding: 20px;
     color: #ffffff;
-    box-shadow: 0 0 25px rgba(0, 191, 255, 0.25), 
-                inset 0 0 15px rgba(0, 191, 255, 0.1);
+    box-shadow: 0 0 25px rgba(0, 191, 255, 0.25);
     pointer-events: auto;
-    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
+    transition: transform 0.2s, border-color 0.2s;
 }
 
-/* Efeito magnético visual quando o ponteiro virtual está em cima */
 .hud-card:hover {
     border-color: #00ffff;
     box-shadow: 0 0 35px rgba(0, 255, 255, 0.4);
 }
 
-/* --------------------------------------------------------------------------
-   CURSORES E COMPONENTES INTERATIVOS (CLIQUE VIRTUAL)
-   -------------------------------------------------------------------------- */
-
-/* Ponteiro gerado pelo movimento do teu dedo indicador direito */
+/* CAMADA MÁXIMA: Cursor do dedo indicador direito */
 #spatial-pointer {
     position: fixed;
     width: 16px;
@@ -106,22 +102,20 @@ body {
     background: #00ffff;
     border: 2px solid #ffffff;
     border-radius: 50%;
-    z-index: 9999; /* Camada máxima absoluta */
+    z-index: 9999;
     pointer-events: none;
-    transform: translate(-50%, -50%); /* Centraliza o ponto na coordenada exata */
-    box-shadow: 0 0 15px #00bfff, 0 0 30px #00bfff;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 15px #00bfff;
     transition: width 0.1s, height 0.1s, background-color 0.1s;
 }
 
-/* Estado visual dinâmico quando deteta o gesto de clique (pinça fechada) */
 #spatial-pointer.clicking {
     width: 10px;
     height: 10px;
     background-color: #ff0055;
-    box-shadow: 0 0 15px #ff0055, 0 0 25px #ff0055;
+    box-shadow: 0 0 15px #ff0055;
 }
 
-/* Sliders de Volume / Zoom Customizados */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -143,13 +137,12 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: pointer;
 }
 
-/* Notificações flutuantes do OS (Toasts superiores) */
 #workspace-overlay-toast {
     position: fixed;
     top: 30px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.8);
     border: 1px solid #00bfff;
     color: #00bfff;
     padding: 10px 25px;
@@ -160,7 +153,5 @@ input[type="range"]::-webkit-slider-thumb {
     z-index: 50;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s ease-in-out;
-    box-shadow: 0 0 15px rgba(0, 191, 255, 0.2);
-        }
-
+    transition: opacity 0.3s;
+}
