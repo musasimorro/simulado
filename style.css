@@ -1,63 +1,166 @@
-html, body {
+/* ==========================================================================
+   MR SPATIAL OS - CORE INTERACTION INTERFACE (CSS DESIGN SYSTEM v4.0)
+   ========================================================================== */
+
+/* Configuração Geral e Reset do Sistema */
+* {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background-color: #000; /* Fundo base */
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
 
-/* O Canvas deve cobrir o ecrã inteiro fixo ao fundo */
+body {
+    background-color: #000; /* Fundo de segurança caso a câmara falhe */
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* --------------------------------------------------------------------------
+   CAMADAS DE HARDWARE (CÂMERA E CANVAS) - CORRIGIDO
+   -------------------------------------------------------------------------- */
+
+/* Oculta o elemento de vídeo bruto para não quebrar o layout */
+#webcam {
+    display: none;
+}
+
+/* O Canvas ocupa toda a tela ao fundo desenhando a Realidade Misturada */
 #output_canvas {
     position: fixed;
-    top: 0;
     left: 0;
+    top: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 1; /* Fica atrás de toda a interface */
+    z-index: 1; /* Fica estritamente na base */
     object-fit: cover;
+    transform: scaleX(1); /* Mantém a orientação natural da câmara traseira */
+    pointer-events: none; /* Não bloqueia os cliques nos botões */
 }
 
-/* O container do teu HUD flutuante */
+/* Container do Sistema Operacional flutua à frente da câmara */
 #workspace-viewport {
     position: fixed;
-    top: 0;
     left: 0;
+    top: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 10; /* Fica à frente do vídeo da câmara */
-    background: transparent; /* CRUCIAL: Remove qualquer fundo sólido para ver a câmara */
-    pointer-events: none; /* Deixa o clique passar para os elementos filhos */
+    z-index: 10; /* Fica por cima do canvas da câmara */
+    background: transparent !important; /* FORÇA TRANSPARÊNCIA PARA EXIBIR A CÂMERA */
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    transform-style: preserve-3d;
-    transition: transform 0.1s ease-out;
+    pointer-events: none; /* Permite passagem para elementos específicos */
 }
 
-/* Garante que os teus cartões voltam a aceitar interações */
-.glass-card, button, input, iframe {
+/* --------------------------------------------------------------------------
+   INTERFACES ESPACIAIS (HUD WRAPPER & CARDS AZUIS)
+   -------------------------------------------------------------------------- */
+
+/* O wrapper que agrupa os painéis e responde ao Pinch Zoom */
+.spatial-hud-wrapper {
+    position: relative;
+    width: 90%;
+    height: 90%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    pointer-events: auto; /* Reativa interações para os elementos internos */
+    transition: transform 0.1s ease-out; /* Suaviza o zoom das duas mãos */
+}
+
+/* Estilização Neon Azul VisionOS para os teus Cards */
+.hud-card {
+    background: rgba(10, 25, 50, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 2px solid #00bfff;
+    border-radius: 24px;
+    padding: 20px;
+    color: #ffffff;
+    box-shadow: 0 0 25px rgba(0, 191, 255, 0.25), 
+                inset 0 0 15px rgba(0, 191, 255, 0.1);
     pointer-events: auto;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
 }
 
-/* Toast flutuante de avisos do sistema */
+/* Efeito magnético visual quando o ponteiro virtual está em cima */
+.hud-card:hover {
+    border-color: #00ffff;
+    box-shadow: 0 0 35px rgba(0, 255, 255, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   CURSORES E COMPONENTES INTERATIVOS (CLIQUE VIRTUAL)
+   -------------------------------------------------------------------------- */
+
+/* Ponteiro gerado pelo movimento do teu dedo indicador direito */
+#spatial-pointer {
+    position: fixed;
+    width: 16px;
+    height: 16px;
+    background: #00ffff;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    z-index: 9999; /* Camada máxima absoluta */
+    pointer-events: none;
+    transform: translate(-50%, -50%); /* Centraliza o ponto na coordenada exata */
+    box-shadow: 0 0 15px #00bfff, 0 0 30px #00bfff;
+    transition: width 0.1s, height 0.1s, background-color 0.1s;
+}
+
+/* Estado visual dinâmico quando deteta o gesto de clique (pinça fechada) */
+#spatial-pointer.clicking {
+    width: 10px;
+    height: 10px;
+    background-color: #ff0055;
+    box-shadow: 0 0 15px #ff0055, 0 0 25px #ff0055;
+}
+
+/* Sliders de Volume / Zoom Customizados */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #00bfff;
+    box-shadow: 0 0 10px #00bfff;
+    cursor: pointer;
+}
+
+/* Notificações flutuantes do OS (Toasts superiores) */
 #workspace-overlay-toast {
     position: fixed;
     top: 30px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid #00bfff;
     color: #00bfff;
     padding: 10px 25px;
     border-radius: 30px;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    z-index: 100;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    z-index: 50;
     opacity: 0;
-    transition: opacity 0.3s ease;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+    pointer-events: none;
+    transition: opacity 0.3s ease-in-out;
+    box-shadow: 0 0 15px rgba(0, 191, 255, 0.2);
+        }
+
