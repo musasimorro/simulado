@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MR Spatial OS v3</title>
+    <title>MR Spatial OS</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -12,21 +12,13 @@
 </head>
 <body>
 
-    <div id="spatial-os-container">
-        <video id="webcam" autoplay playsinline></video>
-        <canvas id="output_canvas"></canvas>
+    <video id="webcam" autoplay playsinline style="display: none;"></video>
+    <canvas id="output_canvas"></canvas>
 
-        <div id="workspace-overlay-toast">SISTEMA INICIALIZADO</div>
+    <div id="workspace-overlay-toast">SISTEMA INICIALIZADO</div>
 
-        <main id="workspace-viewport" class="workspace-animate-fade">
-            </main>
-
-        <footer class="hud-bottom-dock glass-card">
-            <button class="dock-btn-round" onclick="navigateWorkspace(-1)">⏮</button>
-            <button class="dock-btn-main" onclick="loadWorkspace('home')"><div class="main-core"></div></button>
-            <button class="dock-btn-round" onclick="navigateWorkspace(1)">⏭</button>
-        </footer>
-    </div>
+    <main id="workspace-viewport">
+        </main>
 
     <script src="app.js"></script>
 </body>
