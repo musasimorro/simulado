@@ -3,366 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR MR Spatial Suite - Fix Control</title>
+    <title>MR Spatial Suite - Holographic HUD</title>
+    <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #111;
-            overflow: hidden;
-            font-family: sans-serif;
-            user-select: none;
-        }
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-        #webcam {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
-            opacity: 0;
-        }
-        #output_canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 2;
-        }
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.85);
-            color: #00FF00;
-            padding: 10px 20px;
-            border-radius: 20px;
-            z-index: 3;
-            font-weight: bold;
-            border: 1px solid #00FF00;
-            font-size: 13px;
-        }
-        #file_input { display: none; }
-    </style>
 </head>
 <body>
 
-    <div id="container">
-        <div id="status">Aguardando câmera...</div>
+    <div id="hud-container">
+        <div id="status" class="glass-card">Aguardando Câmera...</div>
+        
         <video id="webcam" autoplay playsinline></video>
         <canvas id="output_canvas"></canvas>
-        <input type="file" id="file_input" accept="image/*,video/*">
+
+        <div class="reticle">
+            <div class="reticle-core"></div>
+        </div>
+
+        <header class="panel-top-right glass-card">
+            <button class="hud-btn" id="btn-menu">☰</button>
+            <button class="hud-btn" id="btn-vr">🥽</button>
+            <button class="hud-btn" id="btn-dots">⋮</button>
+        </header>
+
+        <aside class="panel-left">
+            <div class="hud-card glass-card" id="card-volume">
+                <div class="card-header">🔊 VOLUME</div>
+                <div class="slider-container-horizontal">
+                    <span class="step-icon">🔈</span>
+                    <div class="hud-track"><div class="hud-bar" id="vol-bar" style="width: 50%;"></div></div>
+                    <span class="step-icon">🔊</span>
+                </div>
+            </div>
+
+            <div class="hud-card glass-card" id="card-zoom">
+                <div class="card-header">🔍 ZOOM</div>
+                <div class="hud-display" id="zoom-txt">100%</div>
+                <div class="slider-container-horizontal">
+                    <span class="step-icon">−</span>
+                    <div class="hud-track"><div class="hud-bar" id="zoom-bar" style="width: 50%;"></div></div>
+                    <span class="step-icon">+</span>
+                </div>
+            </div>
+
+            <div class="hud-card glass-card trigger-btn" id="card-trash">
+                <div class="trash-icon">🗑️</div>
+                <div class="card-label">LIXEIRA</div>
+            </div>
+
+            <div class="hud-card glass-card trigger-btn" id="card-upload">
+                <div class="upload-icon">📂</div>
+                <div class="card-label">ABRIR ARQUIVO</div>
+            </div>
+        </aside>
+
+        <aside class="panel-right glass-card" id="panel-slider-vertical">
+            <button class="hud-btn-sm" id="v-up">+</button>
+            <div class="hud-track-vertical">
+                <div class="hud-bar-vertical" id="v-bar-fill" style="height: 50%;"></div>
+            </div>
+            <button class="hud-btn-sm" id="v-down">−</button>
+        </aside>
+
+        <footer class="panel-bottom glass-card">
+            <button class="hud-btn-round" id="nav-back">↩</button>
+            <button class="hud-btn-round" id="nav-prev">⏮</button>
+            <button class="hud-btn-main" id="media-play">
+                <div class="main-core"></div>
+            </button>
+            <button class="hud-btn-round" id="nav-next">⏭</button>
+            <button class="hud-btn-round" id="nav-refresh">↻</button>
+        </footer>
     </div>
 
+    <input type="file" id="file_input" accept="image/*,video/*">
     <img id="hidden_img" style="display:none;">
     <video id="hidden_video" loop playsinline style="display:none;"></video>
 
-    <script>
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const statusDiv = document.getElementById('status');
-        const fileInput = document.getElementById('file_input');
-        
-        const hiddenImg = document.getElementById('hidden_img');
-        const hiddenVideo = document.getElementById('hidden_video');
-
-        let mediaType = null;
-        let mediaX = 100;
-        let mediaY = 150;
-        let mediaW = 0; // Largura calculada em tempo real
-        let mediaH = 0; // Altura calculada em tempo real
-        let mediaScale = 0.5;
-        let isDragging = false;
-        let overTrash = false;
-        
-        // offsets para o arrasto não dar solavanco
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
-        
-        let lastActionTime = 0;
-        let buttons = [];
-        let trashBtn = {};
-        let uploadBtn = {};
-
-        function updateElementPositions() {
-            const w = canvasElement.width;
-            const h = canvasElement.height;
-            
-            // LIXEIRA: Superior Esquerdo com boa margem
-            trashBtn = { x: 50, y: 70, radius: 26 };
-
-            // MENU FLUTUANTE REORGANIZADO (Mais alto na tela para não sumir no mobile)
-            const menuY = h - 90; 
-
-            // Botão Abrir Mídia integrado no bloco central
-            uploadBtn = { x: w/2 - 50, y: menuY - 48, w: 100, h: 36, active: false };
-
-            // Demais botões dispostos lado a lado de forma compacta
-            buttons = [
-                { id: 'zin', label: 'ZOOM +', x: w/2 - 174, y: menuY, w: 62, h: 36, active: false },
-                { id: 'zout', label: 'ZOOM -', x: w/2 - 108, y: menuY, w: 62, h: 36, active: false },
-                { id: 'play', label: 'PLAY', x: w/2 - 42, y: menuY, w: 84, h: 36, active: false },
-                { id: 'vup', label: 'VOL +', x: w/2 + 46, y: menuY, w: 62, h: 36, active: false },
-                { id: 'vdown', label: 'VOL -', x: w/2 + 112, y: menuY, w: 62, h: 36, active: false }
-            ];
-        }
-
-        function resizeCanvas() {
-            canvasElement.width = window.innerWidth;
-            canvasElement.height = window.innerHeight;
-            updateElementPositions();
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const fileURL = URL.createObjectURL(file);
-            
-            if (file.type.startsWith('video/')) {
-                mediaType = 'video';
-                hiddenImg.src = "";
-                hiddenVideo.src = fileURL;
-                hiddenVideo.play().catch(err => console.log("Permissão de áudio pendente"));
-                hiddenVideo.volume = 0.5;
-            } else {
-                mediaType = 'image';
-                hiddenVideo.pause();
-                hiddenVideo.src = "";
-                hiddenImg.src = fileURL;
-            }
-            // Abre o arquivo centralizado no topo para visualização inicial limpa
-            mediaX = canvasElement.width / 2 - 100;
-            mediaY = 150;
-        });
-
-        function getDistance(p1, p2) {
-            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-        }
-
-        function drawInterface() {
-            // Desenha Botão Abrir Arquivo
-            canvasCtx.fillStyle = uploadBtn.active ? 'rgba(0, 123, 255, 1)' : 'rgba(0, 123, 255, 0.75)';
-            canvasCtx.strokeStyle = '#FFFFFF';
-            canvasCtx.lineWidth = 1.5;
-            canvasCtx.beginPath();
-            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 10);
-            canvasCtx.fill();
-            canvasCtx.stroke();
-
-            canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.font = 'bold 10px sans-serif';
-            canvasCtx.textAlign = 'center';
-            canvasCtx.textBaseline = 'middle';
-            canvasCtx.fillText('ABRIR MÍDIA 📂', uploadBtn.x + uploadBtn.w/2, uploadBtn.y + uploadBtn.h/2);
-
-            // Desenha Lixeira
-            canvasCtx.save();
-            canvasCtx.beginPath();
-            canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
-            canvasCtx.fillStyle = overTrash ? 'rgba(255, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.6)';
-            canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#FF3333';
-            canvasCtx.lineWidth = overTrash ? 3 : 1.5;
-            canvasCtx.fill();
-            canvasCtx.stroke();
-
-            canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.font = '18px sans-serif';
-            canvasCtx.textAlign = 'center';
-            canvasCtx.textBaseline = 'middle';
-            canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
-            canvasCtx.restore();
-
-            if (!mediaType) return;
-
-            // Desenha os botões inferiores ajustados
-            buttons.forEach(btn => {
-                if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
-
-                canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.9)' : 'rgba(0, 0, 0, 0.75)';
-                canvasCtx.strokeStyle = '#00FF00';
-                canvasCtx.lineWidth = 1.5;
-                
-                canvasCtx.beginPath();
-                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 6);
-                canvasCtx.fill();
-                canvasCtx.stroke();
-
-                canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
-                canvasCtx.font = 'bold 9px sans-serif';
-                canvasCtx.textAlign = 'center';
-                canvasCtx.textBaseline = 'middle';
-                canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
-            });
-        }
-
-        function onResults(results) {
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            buttons.forEach(b => b.active = false);
-            uploadBtn.active = false;
-            overTrash = false;
-
-            if (mediaType) {
-                let currentMediaElement = mediaType === 'image' ? hiddenImg : hiddenVideo;
-                
-                let origW = currentMediaElement.videoWidth || currentMediaElement.width || 400;
-                let origH = currentMediaElement.videoHeight || currentMediaElement.height || 300;
-                
-                const baseFactor = (canvasElement.width * 0.4) / origW;
-                mediaW = origW * baseFactor * mediaScale;
-                mediaH = origH * baseFactor * mediaScale;
-
-                let mediaCenterX = mediaX + (mediaW / 2);
-                let mediaCenterY = mediaY + (mediaH / 2);
-                let distToTrash = Math.sqrt(Math.pow(mediaCenterX - trashBtn.x, 2) + Math.pow(mediaCenterY - trashBtn.y, 2));
-                
-                if (distToTrash < trashBtn.radius + 30) {
-                    overTrash = true;
-                }
-
-                canvasCtx.save();
-                canvasCtx.globalAlpha = 0.85;
-                canvasCtx.drawImage(currentMediaElement, mediaX, mediaY, mediaW, mediaH);
-                
-                if (isDragging) {
-                    canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#00FF00';
-                    canvasCtx.lineWidth = overTrash ? 4 : 2;
-                    canvasCtx.strokeRect(mediaX, mediaY, mediaW, mediaH);
-                }
-                canvasCtx.restore();
-            }
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusDiv.innerText = "Modo MR Ativo";
-                const landmarks = results.multiHandLandmarks[0];
-
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 2});
-
-                const thumbTip = landmarks[4];
-                const indexTip = landmarks[8];
-
-                // Ponto de interação por pinça (médio entre dedão e indicador)
-                const pinchX = ((thumbTip.x + indexTip.x) / 2) * canvasElement.width;
-                const pinchY = ((thumbTip.y + indexTip.y) / 2) * canvasElement.height;
-                const isPinching = getDistance(thumbTip, indexTip) < 0.055;
-
-                // Ponto de interação por toque/apontar (ponta do indicador direto)
-                const pointerX = indexTip.x * canvasElement.width;
-                const pointerY = indexTip.y * canvasElement.height;
-                
-                // Escolhe o alvo de colisão baseado no gesto ativo
-                let targetX = isPinching ? pinchX : pointerX;
-                let targetY = isPinching ? pinchY : pointerY;
-
-                const now = Date.now();
-                let hitButton = false;
-
-                // 1. VERIFICA INTERAÇÃO COM OS BOTÕES (Aceita Pinça ou Dedo Apontado)
-                if (isPinching || (getDistance(thumbTip, indexTip) > 0.08)) { 
-                    
-                    if (targetX >= uploadBtn.x && targetX <= uploadBtn.x + uploadBtn.w && targetY >= uploadBtn.y && targetY <= uploadBtn.y + uploadBtn.h) {
-                        uploadBtn.active = true;
-                        hitButton = true;
-                        if (now - lastActionTime > 1000) {
-                            fileInput.click();
-                            lastActionTime = now;
-                        }
-                    }
-
-                    buttons.forEach(btn => {
-                        if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
-                        
-                        if (targetX >= btn.x && targetX <= btn.x + btn.w && targetY >= btn.y && targetY <= btn.y + btn.h) {
-                            btn.active = true;
-                            hitButton = true;
-
-                            if (now - lastActionTime > 600) {
-                                if (btn.id === 'play') {
-                                    if (hiddenVideo.paused) hiddenVideo.play(); else hiddenVideo.pause();
-                                } else if (btn.id === 'vup') {
-                                    hiddenVideo.volume = Math.min(1, hiddenVideo.volume + 0.1);
-                                } else if (btn.id === 'vdown') {
-                                    hiddenVideo.volume = Math.max(0, hiddenVideo.volume - 0.1);
-                                } else if (btn.id === 'zin') {
-                                    mediaScale = Math.min(2.5, mediaScale + 0.1);
-                                } else if (btn.id === 'zout') {
-                                    mediaScale = Math.max(0.15, mediaScale - 0.1);
-                                }
-                                lastActionTime = now;
-                            }
-                        }
-                    });
-                }
-
-                // 2. CONTROLE DE ARRASTO DO VÍDEO/IMAGEM (Apenas por gesto de PINÇA)
-                if (isPinching && !hitButton && mediaType) {
-                    // CORREÇÃO CRUCIAL: Só inicia o arrasto se a pinça acontecer DENTRO dos limites da mídia flutuante
-                    if (!isDragging) {
-                        if (pinchX >= mediaX && pinchX <= mediaX + mediaW && pinchY >= mediaY && pinchY <= mediaY + mediaH) {
-                            isDragging = true;
-                            // Salva a distância do clique para evitar saltos repentinos
-                            dragOffsetX = pinchX - mediaX;
-                            dragOffsetY = pinchY - mediaY;
-                        }
-                    } else {
-                        // Continua movendo caso já esteja arrastando de forma contínua
-                        mediaX = pinchX - dragOffsetX;
-                        mediaY = pinchY - dragOffsetY;
-                    }
-                } else if (!isPinching) {
-                    // Se soltou a pinça, verifica descarte na lixeira
-                    if (isDragging && overTrash) {
-                        mediaType = null;
-                        hiddenVideo.pause();
-                        hiddenVideo.src = "";
-                        hiddenImg.src = "";
-                    }
-                    isDragging = false;
-                }
-            } else {
-                statusDiv.innerText = "Posicione a mão na câmera";
-                isDragging = false;
-            }
-
-            drawInterface();
-        }
-
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.55,
-            minTrackingConfidence: 0.55
-        });
-
-        hands.onResults(onResults);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({image: videoElement}); },
-            width: 1280,
-            height: 720,
-            facingMode: "environment"
-        });
-        camera.start();
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
