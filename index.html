@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR MR Spatial Suite - Barra Unificada</title>
+    <title>VR MR Spatial Suite - Fix Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -78,11 +78,17 @@
         const hiddenVideo = document.getElementById('hidden_video');
 
         let mediaType = null;
-        let mediaX = 200;
-        let mediaY = 200;
+        let mediaX = 100;
+        let mediaY = 150;
+        let mediaW = 0; // Largura calculada em tempo real
+        let mediaH = 0; // Altura calculada em tempo real
         let mediaScale = 0.5;
         let isDragging = false;
         let overTrash = false;
+        
+        // offsets para o arrasto não dar solavanco
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
         
         let lastActionTime = 0;
         let buttons = [];
@@ -93,20 +99,22 @@
             const w = canvasElement.width;
             const h = canvasElement.height;
             
-            // LIXEIRA: Mantida no Canto Superior Esquerdo
-            trashBtn = { x: 55, y: 65, radius: 30 };
+            // LIXEIRA: Superior Esquerdo com boa margem
+            trashBtn = { x: 50, y: 70, radius: 26 };
 
-            // MENU UNIFICADO NA PARTE INFERIOR (Tudo junto e compacto)
-            // Botão de Abrir Arquivos centralizado logo acima dos controles de mídia
-            uploadBtn = { x: w/2 - 55, y: h - 135, w: 110, h: 38, active: false };
+            // MENU FLUTUANTE REORGANIZADO (Mais alto na tela para não sumir no mobile)
+            const menuY = h - 90; 
 
-            // Barra de ferramentas horizontal compacta com todos os botões juntos
+            // Botão Abrir Mídia integrado no bloco central
+            uploadBtn = { x: w/2 - 50, y: menuY - 48, w: 100, h: 36, active: false };
+
+            // Demais botões dispostos lado a lado de forma compacta
             buttons = [
-                { id: 'zin', label: 'ZOOM +', x: w/2 - 195, y: h - 85, w: 72, h: 38, active: false },
-                { id: 'zout', label: 'ZOOM -', x: w/2 - 118, y: h - 85, w: 72, h: 38, active: false },
-                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 41, y: h - 85, w: 82, h: 38, active: false },
-                { id: 'vup', label: 'VOL +', x: w/2 + 46, y: h - 85, w: 72, h: 38, active: false },
-                { id: 'vdown', label: 'VOL -', x: w/2 + 123, y: h - 85, w: 72, h: 38, active: false }
+                { id: 'zin', label: 'ZOOM +', x: w/2 - 174, y: menuY, w: 62, h: 36, active: false },
+                { id: 'zout', label: 'ZOOM -', x: w/2 - 108, y: menuY, w: 62, h: 36, active: false },
+                { id: 'play', label: 'PLAY', x: w/2 - 42, y: menuY, w: 84, h: 36, active: false },
+                { id: 'vup', label: 'VOL +', x: w/2 + 46, y: menuY, w: 62, h: 36, active: false },
+                { id: 'vdown', label: 'VOL -', x: w/2 + 112, y: menuY, w: 62, h: 36, active: false }
             ];
         }
 
@@ -128,7 +136,7 @@
                 mediaType = 'video';
                 hiddenImg.src = "";
                 hiddenVideo.src = fileURL;
-                hiddenVideo.play().catch(err => console.log("Aguardando ativação"));
+                hiddenVideo.play().catch(err => console.log("Permissão de áudio pendente"));
                 hiddenVideo.volume = 0.5;
             } else {
                 mediaType = 'image';
@@ -136,8 +144,9 @@
                 hiddenVideo.src = "";
                 hiddenImg.src = fileURL;
             }
+            // Abre o arquivo centralizado no topo para visualização inicial limpa
             mediaX = canvasElement.width / 2 - 100;
-            mediaY = canvasElement.height / 2 - 100;
+            mediaY = 150;
         });
 
         function getDistance(p1, p2) {
@@ -145,12 +154,12 @@
         }
 
         function drawInterface() {
-            // Desenha Botão Abrir Arquivo (Alinhado ao centro inferior)
+            // Desenha Botão Abrir Arquivo
             canvasCtx.fillStyle = uploadBtn.active ? 'rgba(0, 123, 255, 1)' : 'rgba(0, 123, 255, 0.75)';
             canvasCtx.strokeStyle = '#FFFFFF';
             canvasCtx.lineWidth = 1.5;
             canvasCtx.beginPath();
-            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 15);
+            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 10);
             canvasCtx.fill();
             canvasCtx.stroke();
 
@@ -166,12 +175,12 @@
             canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
             canvasCtx.fillStyle = overTrash ? 'rgba(255, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.6)';
             canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#FF3333';
-            canvasCtx.lineWidth = overTrash ? 3.5 : 1.5;
+            canvasCtx.lineWidth = overTrash ? 3 : 1.5;
             canvasCtx.fill();
             canvasCtx.stroke();
 
             canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.font = '22px sans-serif';
+            canvasCtx.font = '18px sans-serif';
             canvasCtx.textAlign = 'center';
             canvasCtx.textBaseline = 'middle';
             canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
@@ -179,7 +188,7 @@
 
             if (!mediaType) return;
 
-            // Desenha os botões de controle unificados na barra inferior
+            // Desenha os botões inferiores ajustados
             buttons.forEach(btn => {
                 if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
 
@@ -188,12 +197,12 @@
                 canvasCtx.lineWidth = 1.5;
                 
                 canvasCtx.beginPath();
-                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 6);
                 canvasCtx.fill();
                 canvasCtx.stroke();
 
                 canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
-                canvasCtx.font = 'bold 10px sans-serif';
+                canvasCtx.font = 'bold 9px sans-serif';
                 canvasCtx.textAlign = 'center';
                 canvasCtx.textBaseline = 'middle';
                 canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
@@ -208,33 +217,32 @@
             uploadBtn.active = false;
             overTrash = false;
 
-            let displayW = 0, displayH = 0;
             if (mediaType) {
                 let currentMediaElement = mediaType === 'image' ? hiddenImg : hiddenVideo;
                 
-                displayW = currentMediaElement.videoWidth || currentMediaElement.width || 400;
-                displayH = currentMediaElement.videoHeight || currentMediaElement.height || 300;
+                let origW = currentMediaElement.videoWidth || currentMediaElement.width || 400;
+                let origH = currentMediaElement.videoHeight || currentMediaElement.height || 300;
                 
-                const baseFactor = (canvasElement.width * 0.4) / displayW;
-                displayW = displayW * baseFactor * mediaScale;
-                displayH = displayH * baseFactor * mediaScale;
+                const baseFactor = (canvasElement.width * 0.4) / origW;
+                mediaW = origW * baseFactor * mediaScale;
+                mediaH = origH * baseFactor * mediaScale;
 
-                let mediaCenterX = mediaX + (displayW / 2);
-                let mediaCenterY = mediaY + (displayH / 2);
+                let mediaCenterX = mediaX + (mediaW / 2);
+                let mediaCenterY = mediaY + (mediaH / 2);
                 let distToTrash = Math.sqrt(Math.pow(mediaCenterX - trashBtn.x, 2) + Math.pow(mediaCenterY - trashBtn.y, 2));
                 
-                if (distToTrash < trashBtn.radius + 40) {
+                if (distToTrash < trashBtn.radius + 30) {
                     overTrash = true;
                 }
 
                 canvasCtx.save();
-                canvasCtx.globalAlpha = 0.8;
-                canvasCtx.drawImage(currentMediaElement, mediaX, mediaY, displayW, displayH);
+                canvasCtx.globalAlpha = 0.85;
+                canvasCtx.drawImage(currentMediaElement, mediaX, mediaY, mediaW, mediaH);
                 
                 if (isDragging) {
                     canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#00FF00';
                     canvasCtx.lineWidth = overTrash ? 4 : 2;
-                    canvasCtx.strokeRect(mediaX, mediaY, displayW, displayH);
+                    canvasCtx.strokeRect(mediaX, mediaY, mediaW, mediaH);
                 }
                 canvasCtx.restore();
             }
@@ -243,42 +251,40 @@
                 statusDiv.innerText = "Modo MR Ativo";
                 const landmarks = results.multiHandLandmarks[0];
 
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2.5});
-                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 2});
 
                 const thumbTip = landmarks[4];
                 const indexTip = landmarks[8];
 
-                // Ponto A: Coordenadas de Pinça
+                // Ponto de interação por pinça (médio entre dedão e indicador)
                 const pinchX = ((thumbTip.x + indexTip.x) / 2) * canvasElement.width;
                 const pinchY = ((thumbTip.y + indexTip.y) / 2) * canvasElement.height;
                 const isPinching = getDistance(thumbTip, indexTip) < 0.055;
 
-                // Ponto B: Coordenadas de Apontar (ponta do indicador)
+                // Ponto de interação por toque/apontar (ponta do indicador direto)
                 const pointerX = indexTip.x * canvasElement.width;
                 const pointerY = indexTip.y * canvasElement.height;
                 
-                // Escolhe a mira com base no gesto executado
+                // Escolhe o alvo de colisão baseado no gesto ativo
                 let targetX = isPinching ? pinchX : pointerX;
                 let targetY = isPinching ? pinchY : pointerY;
 
                 const now = Date.now();
                 let hitButton = false;
 
-                // Aceita interações nos botões tanto por pinça quanto apontando com o indicador
+                // 1. VERIFICA INTERAÇÃO COM OS BOTÕES (Aceita Pinça ou Dedo Apontado)
                 if (isPinching || (getDistance(thumbTip, indexTip) > 0.08)) { 
                     
-                    // Colisão com o botão de carregar mídia
                     if (targetX >= uploadBtn.x && targetX <= uploadBtn.x + uploadBtn.w && targetY >= uploadBtn.y && targetY <= uploadBtn.y + uploadBtn.h) {
                         uploadBtn.active = true;
                         hitButton = true;
-                        if (now - lastActionTime > 800) {
+                        if (now - lastActionTime > 1000) {
                             fileInput.click();
                             lastActionTime = now;
                         }
                     }
 
-                    // Colisão com a lista de botões da barra inferior unificada
                     buttons.forEach(btn => {
                         if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
                         
@@ -304,12 +310,23 @@
                     });
                 }
 
-                // Movimentação do arquivo pela tela (Restrito apenas ao gesto de PINÇA)
+                // 2. CONTROLE DE ARRASTO DO VÍDEO/IMAGEM (Apenas por gesto de PINÇA)
                 if (isPinching && !hitButton && mediaType) {
-                    isDragging = true;
-                    mediaX = pinchX - (displayW / 2);
-                    mediaY = pinchY - (displayH / 2);
+                    // CORREÇÃO CRUCIAL: Só inicia o arrasto se a pinça acontecer DENTRO dos limites da mídia flutuante
+                    if (!isDragging) {
+                        if (pinchX >= mediaX && pinchX <= mediaX + mediaW && pinchY >= mediaY && pinchY <= mediaY + mediaH) {
+                            isDragging = true;
+                            // Salva a distância do clique para evitar saltos repentinos
+                            dragOffsetX = pinchX - mediaX;
+                            dragOffsetY = pinchY - mediaY;
+                        }
+                    } else {
+                        // Continua movendo caso já esteja arrastando de forma contínua
+                        mediaX = pinchX - dragOffsetX;
+                        mediaY = pinchY - dragOffsetY;
+                    }
                 } else if (!isPinching) {
+                    // Se soltou a pinça, verifica descarte na lixeira
                     if (isDragging && overTrash) {
                         mediaType = null;
                         hiddenVideo.pause();
