@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR MR Media Suite - Lixeira</title>
+    <title>VR MR Media Suite - Interface Ajustada</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -54,15 +54,15 @@
         #file_label {
             position: absolute;
             bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 30px;
             background: #007bff;
             color: white;
-            padding: 15px 30px;
+            padding: 12px 24px;
             border-radius: 30px;
             z-index: 4;
             font-weight: bold;
             cursor: pointer;
+            font-size: 14px;
         }
         #file_input { display: none; }
     </style>
@@ -96,27 +96,27 @@
         let mediaY = 200;
         let mediaScale = 0.5;
         let isDragging = false;
-        let overTrash = false; // Indica se a mídia está em cima da lixeira
+        let overTrash = false;
         
         let lastActionTime = 0;
         let buttons = [];
-        let trashBtn = {}; // Objeto da lixeira virtual
+        let trashBtn = {};
 
         function updateElementPositions() {
             const w = canvasElement.width;
             const h = canvasElement.height;
             
-            // Botões de controle de mídia e zoom
+            // Botões organizados na parte inferior com espaçamento ideal
             buttons = [
-                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 160, y: h - 120, w: 100, h: 50, active: false },
-                { id: 'vup', label: 'VOL +', x: w/2 - 50, y: h - 120, w: 90, h: 50, active: false },
-                { id: 'vdown', label: 'VOL -', x: w/2 + 50, y: h - 120, w: 90, h: 50, active: false },
-                { id: 'zout', label: 'ZOOM -', x: w - 120, y: 80, w: 90, h: 50, active: false },
-                { id: 'zin', label: 'ZOOM +', x: w - 120, y: 20, w: 90, h: 50, active: false }
+                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 210, y: h - 100, w: 110, h: 45, active: false },
+                { id: 'vup', label: 'VOL +', x: w/2 - 90, y: h - 100, w: 80, h: 45, active: false },
+                { id: 'vdown', label: 'VOL -', x: w/2, y: h - 100, w: 80, h: 45, active: false },
+                { id: 'zout', label: 'ZOOM -', x: w/2 + 90, y: h - 100, w: 80, h: 45, active: false },
+                { id: 'zin', label: 'ZOOM +', x: w/2 + 180, y: h - 100, w: 80, h: 45, active: false }
             ];
 
-            // Configuração da Lixeira Virtual (Canto inferior esquerdo)
-            trashBtn = { x: 60, y: h - 130, radius: 40, active: false };
+            // Lixeira movida para o CANTO SUPERIOR ESQUERDO conforme solicitado
+            trashBtn = { x: 60, y: 70, radius: 35, active: false };
         }
 
         function resizeCanvas() {
@@ -145,8 +145,8 @@
                 hiddenVideo.src = "";
                 hiddenImg.src = fileURL;
             }
-            mediaX = canvasElement.width / 4;
-            mediaY = canvasElement.height / 4;
+            mediaX = canvasElement.width / 2 - 150;
+            mediaY = canvasElement.height / 2 - 150;
         });
 
         function getDistance(p1, p2) {
@@ -154,12 +154,13 @@
         }
 
         function drawInterface() {
-            // Desenha os botões superiores/inferiores de controle
+            if (!mediaType) return;
+
+            // Desenha os botões de ação na tela
             buttons.forEach(btn => {
                 if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
-                if (!mediaType) return;
 
-                canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.8)' : 'rgba(0, 0, 0, 0.75)';
+                canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.85)' : 'rgba(0, 0, 0, 0.75)';
                 canvasCtx.strokeStyle = '#00FF00';
                 canvasCtx.lineWidth = 2;
                 
@@ -169,39 +170,35 @@
                 canvasCtx.stroke();
 
                 canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
-                canvasCtx.font = 'bold 14px sans-serif';
+                canvasCtx.font = 'bold 12px sans-serif';
                 canvasCtx.textAlign = 'center';
                 canvasCtx.textBaseline = 'middle';
                 canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
             });
 
-            // Desenha a Lixeira Holográfica (Sempre visível se houver mídia carregada)
-            if (mediaType) {
-                canvasCtx.save();
-                canvasCtx.beginPath();
-                canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
-                
-                // Pisca em vermelho forte se a imagem estiver em cima dela
-                if (overTrash) {
-                    canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.85)';
-                    canvasCtx.strokeStyle = '#FF0000';
-                    canvasCtx.lineWidth = 4;
-                } else {
-                    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    canvasCtx.strokeStyle = '#FF3333';
-                    canvasCtx.lineWidth = 2;
-                }
-                canvasCtx.fill();
-                canvasCtx.stroke();
-
-                // Desenha o ícone Emoji de lixeira no meio do círculo
-                canvasCtx.fillStyle = '#FFFFFF';
-                canvasCtx.font = '30px sans-serif';
-                canvasCtx.textAlign = 'center';
-                canvasCtx.textBaseline = 'middle';
-                canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
-                canvasCtx.restore();
+            // Desenha a Lixeira no Topo Esquerdo
+            canvasCtx.save();
+            canvasCtx.beginPath();
+            canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
+            
+            if (overTrash) {
+                canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+                canvasCtx.strokeStyle = '#FF0000';
+                canvasCtx.lineWidth = 4;
+            } else {
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                canvasCtx.strokeStyle = '#FF3333';
+                canvasCtx.lineWidth = 2;
             }
+            canvasCtx.fill();
+            canvasCtx.stroke();
+
+            canvasCtx.fillStyle = '#FFFFFF';
+            canvasCtx.font = '26px sans-serif';
+            canvasCtx.textAlign = 'center';
+            canvasCtx.textBaseline = 'middle';
+            canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
+            canvasCtx.restore();
         }
 
         function onResults(results) {
@@ -211,7 +208,6 @@
             buttons.forEach(b => b.active = false);
             overTrash = false;
 
-            // Renderiza a Mídia Flutuante
             let displayW = 0, displayH = 0;
             if (mediaType) {
                 let currentMediaElement = mediaType === 'image' ? hiddenImg : hiddenVideo;
@@ -219,16 +215,16 @@
                 displayW = currentMediaElement.videoWidth || currentMediaElement.width || 400;
                 displayH = currentMediaElement.videoHeight || currentMediaElement.height || 300;
                 
-                const baseFactor = (canvasElement.width * 0.5) / displayW;
+                const baseFactor = (canvasElement.width * 0.45) / displayW;
                 displayW = displayW * baseFactor * mediaScale;
                 displayH = displayH * baseFactor * mediaScale;
 
-                // Lógica de colisão da mídia com a lixeira: verifica se o centro da imagem entrou no raio da lixeira
+                // Validação de proximidade com a lixeira superior esquerda
                 let mediaCenterX = mediaX + (displayW / 2);
                 let mediaCenterY = mediaY + (displayH / 2);
                 let distToTrash = Math.sqrt(Math.pow(mediaCenterX - trashBtn.x, 2) + Math.pow(mediaCenterY - trashBtn.y, 2));
                 
-                if (distToTrash < trashBtn.radius + 30) {
+                if (distToTrash < trashBtn.radius + 50) {
                     overTrash = true;
                 }
 
@@ -237,7 +233,6 @@
                 canvasCtx.drawImage(currentMediaElement, mediaX, mediaY, displayW, displayH);
                 
                 if (isDragging) {
-                    // SE ESTIVER EM CIMA DA LIXEIRA, BORDA FICA VERMELHA. CASO CONTRÁRIO, VERDE.
                     canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#00FF00';
                     canvasCtx.lineWidth = overTrash ? 5 : 3;
                     canvasCtx.strokeRect(mediaX, mediaY, displayW, displayH);
@@ -245,7 +240,6 @@
                 canvasCtx.restore();
             }
 
-            // Processamento das Mãos
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 statusDiv.innerText = "Modo MR Ativo";
                 const landmarks = results.multiHandLandmarks[0];
@@ -256,8 +250,9 @@
                 const thumbTip = landmarks[4];
                 const indexTip = landmarks[8];
 
-                const idxX = indexTip.x * canvasElement.width;
-                const idxY = indexTip.y * canvasElement.height;
+                // Ponto central exato do gesto de pinça (onde os dedos se cruzam)
+                const pinchX = ((thumbTip.x + indexTip.x) / 2) * canvasElement.width;
+                const pinchY = ((thumbTip.y + indexTip.y) / 2) * canvasElement.height;
 
                 const isPinching = getDistance(thumbTip, indexTip) < 0.06;
                 const now = Date.now();
@@ -265,13 +260,15 @@
                 if (isPinching) {
                     let hitButton = false;
 
+                    // Executa a colisão baseada na posição exata da pinça fechada
                     buttons.forEach(btn => {
                         if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
-                        if (idxX >= btn.x && idxX <= btn.x + btn.w && idxY >= btn.y && idxY <= btn.y + btn.h) {
+                        
+                        if (pinchX >= btn.x && pinchX <= btn.x + btn.w && pinchY >= btn.y && pinchY <= btn.y + btn.h) {
                             btn.active = true;
                             hitButton = true;
 
-                            if (now - lastActionTime > 600) {
+                            if (now - lastActionTime > 500) { // Debounce de 500ms
                                 if (btn.id === 'play') {
                                     if (hiddenVideo.paused) hiddenVideo.play(); else hiddenVideo.pause();
                                 } else if (btn.id === 'vup') {
@@ -288,14 +285,14 @@
                         }
                     });
 
+                    // Se a pinça não foi feita em cima de nenhum botão, arrasta a mídia flutuante
                     if (!hitButton && mediaType) {
                         isDragging = true;
-                        mediaX = idxX - (displayW / 2);
-                        mediaY = idxY - (displayH / 2);
+                        mediaX = pinchX - (displayW / 2);
+                        mediaY = pinchY - (displayH / 2);
                     }
 
                 } else {
-                    // SE SOLTAR O GESTO DE PINÇA ENQUANTO ESTIVER EM CIMA DA LIXEIRA, DELETA A MÍDIA
                     if (isDragging && overTrash) {
                         mediaType = null;
                         hiddenVideo.pause();
