@@ -2,24 +2,521 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MR Spatial OS</title>
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Vision HUD - MR Interface Futurista</title>
+    <!-- Google Fonts: Orbitron e Inter para efeito tecnológico -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- MediaPipe Hands CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        /* ========== RESET E BASE ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* Evita seleção indesejada, mantém interação */
+        }
+
+        body {
+            font-family: 'Inter', 'Orbitron', sans-serif;
+            overflow: hidden;
+            background: #000;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* Canvas da webcam ocupa fundo total */
+        #webcam-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+            filter: brightness(1.05) contrast(1.1);
+        }
+
+        /* Overlay com efeito de vinheta e leve scanline futurista */
+        .overlay-fx {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.3) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ========== CONTAINER PRINCIPAL DA HUD ========== */
+        .hud-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Permite cliques nos elementos filhos habilitados */
+        }
+
+        /* Todos os painéis interativos recuperam eventos */
+        .glass-panel, .side-panel, .bottom-dock, .top-right-menu, .vertical-slider, .action-btn, .file-trigger, .trash-btn, .zoom-control, .volume-control {
+            pointer-events: auto;
+        }
+
+        /* ========== Efeitos Globais Glassmorphism + Neon ========== */
+        .glass-panel {
+            background: rgba(12, 20, 35, 0.3);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 191, 255, 0.35);
+            border-radius: 20px;
+            box-shadow: 0 0 15px rgba(0, 191, 255, 0.2), inset 0 0 10px rgba(0, 191, 255, 0.1);
+            transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(0, 191, 255, 0.8);
+            box-shadow: 0 0 22px rgba(0, 191, 255, 0.5);
+            transform: scale(1.02);
+        }
+
+        /* Botões e itens com hover glow e escala */
+        .action-btn, .file-trigger, .trash-btn, .zoom-btn, .volume-btn, .menu-btn, .vr-btn, .settings-btn, .dock-item {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s;
+            cursor: pointer;
+        }
+
+        .action-btn:hover, .file-trigger:hover, .trash-btn:hover, .zoom-btn:hover, .volume-btn:hover, 
+        .menu-btn:hover, .vr-btn:hover, .settings-btn:hover, .dock-item:hover {
+            transform: scale(1.08);
+            filter: drop-shadow(0 0 8px #00BFFF);
+        }
+
+        /* ========== PAINEL LATERAL ESQUERDO ========== */
+        .left-sidebar {
+            position: absolute;
+            left: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            z-index: 20;
+        }
+
+        .glass-card {
+            width: 80px;
+            height: 80px;
+            background: rgba(20, 30, 55, 0.35);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.25s;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .glass-card span:first-child {
+            font-size: 28px;
+            filter: drop-shadow(0 0 3px #00BFFF);
+        }
+
+        .glass-card .label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: #ccf4ff;
+            text-transform: uppercase;
+            font-family: 'Orbitron', monospace;
+        }
+
+        /* indicador de valor para volume/zoom */
+        .value-indicator {
+            font-size: 10px;
+            font-family: 'Orbitron', monospace;
+            color: #00BFFF;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 6px;
+            border-radius: 20px;
+            margin-top: 2px;
+        }
+
+        /* ========== PAINEL SUPERIOR DIREITO ========== */
+        .top-right-menu {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            display: flex;
+            gap: 20px;
+            background: rgba(8, 16, 28, 0.4);
+            backdrop-filter: blur(20px);
+            padding: 12px 28px;
+            border-radius: 50px;
+            border: 1px solid rgba(0, 191, 255, 0.4);
+            box-shadow: 0 0 12px rgba(0,191,255,0.2);
+            z-index: 20;
+        }
+
+        .menu-icon, .vr-icon, .settings-icon {
+            font-size: 24px;
+            color: #eef5ff;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+
+        /* ========== PAINEL LATERAL DIREITO - SLIDER VERTICAL HOLOGRÁFICO ========== */
+        .right-slider-panel {
+            position: absolute;
+            right: 28px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            background: rgba(15, 25, 45, 0.35);
+            backdrop-filter: blur(20px);
+            border-radius: 40px;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            box-shadow: 0 0 20px rgba(0,191,255,0.2);
+            z-index: 20;
+        }
+
+        .slider-label {
+            color: #00BFFF;
+            font-size: 12px;
+            font-weight: bold;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 3px;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .vertical-slider {
+            width: 6px;
+            height: 180px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .slider-thumb {
+            width: 20px;
+            height: 20px;
+            background: #00BFFF;
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            top: 50%;
+            box-shadow: 0 0 12px #00BFFF;
+            transition: top 0.05s linear;
+            cursor: grab;
+        }
+
+        .slider-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #c0f2ff;
+            background: rgba(0,0,0,0.6);
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-family: 'Orbitron';
+        }
+
+        /* ========== DOCK INFERIOR CENTRAL (CARROSSEL) ========== */
+        .bottom-dock {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12, 22, 38, 0.4);
+            backdrop-filter: blur(20px);
+            border-radius: 60px;
+            padding: 12px 28px;
+            display: flex;
+            gap: 28px;
+            align-items: center;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            box-shadow: 0 0 25px rgba(0,191,255,0.3);
+            z-index: 20;
+        }
+
+        .dock-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 8px 12px;
+            border-radius: 40px;
+        }
+
+        .dock-item span:first-child {
+            font-size: 28px;
+            color: #eef5ff;
+        }
+
+        .dock-label {
+            font-size: 10px;
+            font-family: 'Orbitron', monospace;
+            color: #9bc7ff;
+            margin-top: 4px;
+        }
+
+        .main-button {
+            background: radial-gradient(circle at 30% 10%, #00BFFF, #0066aa);
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255,255,255,0.6);
+            box-shadow: 0 0 20px #00BFFF;
+            transition: 0.2s;
+        }
+
+        .main-button span {
+            font-size: 38px;
+            color: white;
+            filter: drop-shadow(0 0 4px black);
+        }
+
+        .main-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #00ccff;
+        }
+
+        /* Controles internos de zoom/volume (sliders horizontais dentro do card) */
+        .slider-horizontal {
+            width: 100px;
+            height: 3px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+            margin-top: 6px;
+            position: relative;
+        }
+        .slider-fill {
+            width: 70%;
+            height: 3px;
+            background: #00BFFF;
+            border-radius: 4px;
+            box-shadow: 0 0 4px cyan;
+        }
+
+        /* área de upload / lixeira */
+        .file-input-hidden {
+            display: none;
+        }
+
+        /* feedback mão sobre botão (hover tracking com MediaPipe) - classe dinâmica */
+        .hand-hover {
+            filter: drop-shadow(0 0 12px #00ffff);
+            border-color: cyan !important;
+            transition: 0.05s linear;
+        }
+
+        /* responsividade leve */
+        @media (max-width: 700px) {
+            .glass-card { width: 65px; height: 65px; }
+            .bottom-dock { gap: 12px; padding: 8px 18px; }
+            .dock-item span:first-child { font-size: 22px; }
+            .main-button { width: 55px; height: 55px; }
+            .main-button span { font-size: 28px; }
+            .top-right-menu { padding: 8px 18px; gap: 12px; }
+        }
+    </style>
+    <link rel="stylesheet" href="data:text/css;charset=utf-8,/* inline style completo */">
 </head>
 <body>
 
-    <video id="webcam" autoplay playsinline style="display: none;"></video>
-    <canvas id="output_canvas"></canvas>
+    <video id="webcam" style="display: none;" autoplay playsinline></video>
+    <canvas id="webcam-canvas" width="1280" height="720"></canvas>
+    <div class="overlay-fx"></div>
 
-    <div id="workspace-overlay-toast">SISTEMA INICIALIZADO</div>
+    <div class="hud-container">
+        <!-- PAINEL ESQUERDO: Volume, Zoom, Lixeira, Abrir Arquivo -->
+        <div class="left-sidebar">
+            <div class="glass-card" id="volume-btn">
+                <span>🔊</span>
+                <span class="label">VOLUME</span>
+                <div class="slider-horizontal" id="volume-slider-bg">
+                    <div class="slider-fill" id="volume-fill" style="width: 70%;"></div>
+                </div>
+                <span class="value-indicator" id="volume-value">70%</span>
+            </div>
+            <div class="glass-card" id="zoom-btn">
+                <span>🔍</span>
+                <span class="label">ZOOM</span>
+                <div class="slider-horizontal" id="zoom-slider-bg">
+                    <div class="slider-fill" id="zoom-fill" style="width: 50%;"></div>
+                </div>
+                <span class="value-indicator" id="zoom-value">50%</span>
+            </div>
+            <div class="glass-card trash-btn" id="trash-btn">
+                <span>🗑️</span>
+                <span class="label">LIXEIRA</span>
+            </div>
+            <div class="glass-card file-trigger" id="open-file-btn">
+                <span>📂</span>
+                <span class="label">ABRIR ARQUIVO</span>
+            </div>
+        </div>
 
-    <main id="workspace-viewport">
-        </main>
+        <!-- PAINEL SUPERIOR DIREITO: Menu, VR, Configurações -->
+        <div class="top-right-menu">
+            <div class="menu-icon action-btn" id="menu-icon">☰</div>
+            <div class="vr-icon action-btn" id="vr-icon">🥽</div>
+            <div class="settings-icon action-btn" id="settings-icon">⚙️</div>
+        </div>
 
-    <script src="app.js"></script>
-</body>
-</html>
+        <!-- PAINEL LATERAL DIREITO: Slider vertical holográfico -->
+        <div class="right-slider-panel">
+            <div class="slider-label">HOLO</div>
+            <div class="vertical-slider" id="vertical-slider">
+                <div class="slider-thumb" id="slider-thumb"></div>
+            </div>
+            <div class="slider-value" id="holo-value">0.50</div>
+        </div>
+
+        <!-- DOCK INFERIOR CENTRAL: Voltar, Anterior, Botão principal, Próximo, Atualizar -->
+        <div class="bottom-dock">
+            <div class="dock-item" id="back-btn">
+                <span>⏪</span>
+                <span class="dock-label">VOLTAR</span>
+            </div>
+            <div class="dock-item" id="prev-btn">
+                <span>◀</span>
+                <span class="dock-label">ANTERIOR</span>
+            </div>
+            <div class="main-button" id="main-action-btn">
+                <span>▶️</span>
+            </div>
+            <div class="dock-item" id="next-btn">
+                <span>▶</span>
+                <span class="dock-label">PRÓXIMO</span>
+            </div>
+            <div class="dock-item" id="refresh-btn">
+                <span>🔄</span>
+                <span class="dock-label">ATUALIZAR</span>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*,video/*,audio/*" class="file-input-hidden" multiple>
+
+    <script>
+        // ------------------------- JS: Preservar todas as funcionalidades originais e adicionar layout interativo -------------------------
+        // 1. MediaPipe Hands + Sistema de Pinça + Arrastar arquivos + Upload + Controle Zoom/Volume + Lixeira + Vídeo
+        
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('webcam-canvas');
+        const ctx = canvasElement.getContext('2d');
+        
+        // Controles de estado
+        let currentVolume = 0.7;   // 0-1
+        let currentZoom = 0.5;     // 0-1
+        let mediaElements = [];     // para vídeos/imagens carregados
+        let activeMediaIndex = 0;
+        
+        // Elementos da UI
+        const volumeFill = document.getElementById('volume-fill');
+        const volumeValueSpan = document.getElementById('volume-value');
+        const zoomFill = document.getElementById('zoom-fill');
+        const zoomValueSpan = document.getElementById('zoom-value');
+        const trashBtn = document.getElementById('trash-btn');
+        const openFileBtn = document.getElementById('open-file-btn');
+        const fileInput = document.getElementById('file-input');
+        const verticalSliderDiv = document.getElementById('vertical-slider');
+        const sliderThumb = document.getElementById('slider-thumb');
+        const holoValueSpan = document.getElementById('holo-value');
+        
+        // Atualizar UI Volume
+        function updateVolumeUI() {
+            let percent = Math.round(currentVolume * 100);
+            volumeFill.style.width = `${percent}%`;
+            volumeValueSpan.innerText = `${percent}%`;
+            // Aplicar volume em todos os vídeos carregados
+            document.querySelectorAll('video').forEach(vid => { if(vid) vid.volume = currentVolume; });
+        }
+        
+        function updateZoomUI() {
+            let percent = Math.round(currentZoom * 100);
+            zoomFill.style.width = `${percent}%`;
+            zoomValueSpan.innerText = `${percent}%`;
+            // Aplicar zoom no canvas da webcam via transform style? A imagem reference de webcam mantém; zoom afeta container? manter estilo.
+            canvasElement.style.transform = `scale(${0.8 + currentZoom * 0.6})`;
+            canvasElement.style.transition = 'transform 0.1s ease';
+        }
+        
+        // Controles via botões / sliders manuais (manter compatibilidade)
+        function setupControls() {
+            // Volume: clique no card arrasta? Simularemos slider simples com eventos de arrasto horizontal no card volume.
+            const volumeCard = document.getElementById('volume-btn');
+            volumeCard.addEventListener('mousedown', (e) => { handleSliderDrag(e, 'volume'); });
+            volumeCard.addEventListener('touchstart', (e) => { handleSliderDrag(e, 'volume'); });
+            const zoomCard = document.getElementById('zoom-btn');
+            zoomCard.addEventListener('mousedown', (e) => { handleSliderDrag(e, 'zoom'); });
+            zoomCard.addEventListener('touchstart', (e) => { handleSliderDrag(e, 'zoom'); });
+            
+            function handleSliderDrag(event, type) {
+                event.preventDefault();
+                const rect = (type === 'volume') ? volumeCard.getBoundingClientRect() : zoomCard.getBoundingClientRect();
+                const onMove = (moveEvent) => {
+                    let clientX = moveEvent.clientX ?? (moveEvent.touches ? moveEvent.touches[0].clientX : 0);
+                    let relativeX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+                    if(type === 'volume') {
+                        currentVolume = relativeX;
+                        updateVolumeUI();
+                        // Aplicar volume nos vídeos existentes
+                        document.querySelectorAll('video').forEach(v => v.volume = currentVolume);
+                    } else {
+                        currentZoom = relativeX;
+                        updateZoomUI();
+                    }
+                };
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+                window.addEventListener('touchmove', onMove);
+                window.addEventListener('touchend', onUp);
+            }
+        }
+        
+        // Slider Vertical (controle holográfico genérico - exemplo modifica efeitos)
+        let verticalValue = 0.5;
+        function updateVerticalSlider(value) {
+            verticalValue = Math.min(1, Math.max(0, value));
+            let percent = verticalValue * 100;
+            let containerHeight = verticalSliderDiv.clientHeight;
+            let thumbTop = (1 - verticalValue) * containerHeight;
+            sliderThumb.style.top = `${thumbTop}px`;
+            holoValueSpan.innerText = verticalValue.toFixed(2);
+            // efeito extra: alterar brilho HUD (estilo futurista)
+            document.querySelector('.hud-container').style.filter = `brightness(${0.8 + verticalValue * 0.4})`;
+        }
+        
+        function initVerticalSlider() {
+            updateVerticalSlider(0.5);
+            const onDrag = (e) => {
+                e.preventDefault();
+                const rect = verticalSliderDiv.getBoundingClientRect();
+                let clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+                let yNorm = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+                let value = 1 - yNorm;
+          
