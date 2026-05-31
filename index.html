@@ -4,39 +4,341 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Vision HUD - Interface por Gestos</title>
-    
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <!-- MediaPipe -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    
-    <!-- CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Inter', 'Orbitron', sans-serif;
+            overflow: hidden;
+            background: #000;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        #webcam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+            transform: scaleX(-1);
+        }
+
+        #hand-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .overlay-fx {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.4) 100%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .hud-container {
+            position: fixed;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            top: 0;
+            left: 0;
+        }
+
+        .desktop-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            transform: translateX(0%);
+        }
+
+        .desktop {
+            min-width: 100%;
+            height: 100%;
+            padding: 80px 20px 120px 20px;
+            overflow-y: auto;
+        }
+
+        .home-widget {
+            background: rgba(12, 20, 35, 0.4);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .clock {
+            font-size: 70px;
+            font-family: 'Orbitron', monospace;
+            color: #00BFFF;
+            text-shadow: 0 0 20px #00BFFF;
+            letter-spacing: 5px;
+        }
+
+        .date {
+            font-size: 18px;
+            color: #ccf4ff;
+            margin-top: 10px;
+        }
+
+        .voice-search-container {
+            background: rgba(12, 20, 35, 0.4);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .voice-btn {
+            background: radial-gradient(circle at 30% 10%, #00BFFF, #0066aa);
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.6);
+            box-shadow: 0 0 20px #00BFFF;
+            transition: 0.2s;
+        }
+
+        .voice-btn span {
+            font-size: 40px;
+        }
+
+        .search-result {
+            color: white;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            padding: 10px;
+        }
+
+        .file-card {
+            background: rgba(12, 20, 35, 0.5);
+            backdrop-filter: blur(20px);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 191, 255, 0.4);
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-card span:first-child {
+            font-size: 40px;
+            display: block;
+        }
+
+        .file-card .file-name {
+            font-size: 12px;
+            color: #ccf4ff;
+            margin-top: 8px;
+        }
+
+        .empty-placeholder {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            opacity: 0.7;
+        }
+
+        .google-search-container {
+            background: rgba(12, 20, 35, 0.4);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            padding: 30px;
+        }
+
+        .google-logo {
+            text-align: center;
+            font-size: 30px;
+            font-family: 'Orbitron', monospace;
+            color: #00BFFF;
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #00BFFF;
+            border-radius: 50px;
+            color: white;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .webview-container {
+            margin-top: 20px;
+            height: 400px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid #00BFFF;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+
+        .desktop-indicator {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 20;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 30px;
+        }
+
+        .indicator-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transition: all 0.3s;
+        }
+
+        .indicator-dot.active {
+            background: #00BFFF;
+            box-shadow: 0 0 10px #00BFFF;
+            width: 20px;
+            border-radius: 10px;
+        }
+
+        .side-menu {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 20;
+        }
+
+        .menu-item {
+            width: 60px;
+            height: 60px;
+            background: rgba(12, 20, 35, 0.5);
+            backdrop-filter: blur(20px);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 191, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .menu-item.active {
+            border-color: #00BFFF;
+            box-shadow: 0 0 15px #00BFFF;
+            background: rgba(0, 191, 255, 0.2);
+        }
+
+        .gesture-guide {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 10px;
+            color: #00BFFF;
+            font-family: 'Orbitron', monospace;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .status-bar {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: #00FF88;
+            font-family: 'Orbitron', monospace;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .upload-area {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 700px) {
+            .clock { font-size: 45px; }
+            .menu-item { width: 50px; height: 50px; font-size: 24px; }
+        }
+    </style>
 </head>
 <body>
 
-    <!-- Background de fallback -->
-    <div class="fallback-bg" id="fallback-bg"></div>
-    
-    <!-- Webcam e Canvas -->
     <video id="webcam" autoplay playsinline muted></video>
     <canvas id="hand-canvas"></canvas>
     <div class="overlay-fx"></div>
 
-    <!-- Interface HUD -->
     <div class="hud-container">
-        <!-- Menu lateral -->
         <div class="side-menu">
             <div class="menu-item" data-desktop="0">🏠</div>
             <div class="menu-item" data-desktop="1">📁</div>
             <div class="menu-item" data-desktop="2">🔍</div>
         </div>
 
-        <!-- Áreas de trabalho -->
         <div class="desktop-container" id="desktop-container">
-            <!-- Desktop Home -->
             <div class="desktop" data-desktop="0">
                 <div class="home-widget">
                     <div class="clock" id="clock">--:--</div>
@@ -50,7 +352,6 @@
                 </div>
             </div>
 
-            <!-- Desktop Arquivos -->
             <div class="desktop" data-desktop="1">
                 <div class="files-grid" id="files-grid">
                     <div class="file-card empty-placeholder">
@@ -59,13 +360,12 @@
                     </div>
                 </div>
                 <div class="upload-area">
-                    <div class="voice-btn" id="upload-btn">
+                    <div class="voice-btn" id="upload-btn" style="width:60px; height:60px; display:inline-flex;">
                         <span>📎</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Desktop Pesquisa -->
             <div class="desktop" data-desktop="2">
                 <div class="google-search-container">
                     <div class="google-logo">🔍 VISION SEARCH</div>
@@ -77,37 +377,299 @@
             </div>
         </div>
 
-        <!-- Indicador de desktop -->
         <div class="desktop-indicator">
             <div class="indicator-dot active"></div>
             <div class="indicator-dot"></div>
             <div class="indicator-dot"></div>
         </div>
 
-        <!-- Guia de gestos -->
         <div class="gesture-guide">
             🖐️ GESTOS: 👆 Indicador = Clique | ✌️ Pinça dupla = Zoom | 🤚 Deslizar = Trocar área
         </div>
 
-        <!-- Status Bar -->
         <div class="status-bar" id="status-bar">🟢 INICIANDO...</div>
-
-        <!-- Seletor de câmera -->
-        <div class="camera-selector" id="camera-selector" style="display: none;">
-            <select id="camera-select">
-                <option value="">Carregando câmeras...</option>
-            </select>
-        </div>
     </div>
 
-    <!-- Input de arquivos oculto -->
     <input type="file" id="file-input" accept="image/*,video/*" multiple style="display: none">
 
-    <!-- JavaScript Modules -->
-    <script src="js/desktop.js"></script>
-    <script src="js/files.js"></script>
-    <script src="js/camera.js"></script>
-    <script src="js/gestures.js"></script>
-    <script src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    
+    <script>
+        // ========== VARIÁVEIS GLOBAIS ==========
+        let currentDesktop = 0;
+        let mediaElements = [];
+        let currentStream = null;
+        let hands = null;
+        let cameraProcessor = null;
+        let lastHandX = null;
+        let lastSwipeTime = 0;
+        let pinchActive = false;
+        let pinchStartDistance = 0;
+        let currentScale = 1;
+
+        // Elementos
+        const desktopContainer = document.getElementById('desktop-container');
+        const handCanvas = document.getElementById('hand-canvas');
+        const ctx = handCanvas.getContext('2d');
+        const videoElement = document.getElementById('webcam');
+        const filesGrid = document.getElementById('files-grid');
+        const fileInput = document.getElementById('file-input');
+        const statusBar = document.getElementById('status-bar');
+        const searchInput = document.getElementById('search-input');
+        const searchIframe = document.getElementById('search-iframe');
+        const voiceBtn = document.getElementById('voice-btn');
+        const searchResult = document.getElementById('search-result');
+
+        // ========== FUNÇÃO DE STATUS ==========
+        function updateStatus(msg) {
+            if (statusBar) statusBar.textContent = msg;
+            console.log(msg);
+        }
+
+        // ========== RELÓGIO ==========
+        function updateClock() {
+            const now = new Date();
+            const clockEl = document.getElementById('clock');
+            const dateEl = document.getElementById('date');
+            if (clockEl) clockEl.textContent = now.toLocaleTimeString('pt-BR');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ========== TROCAR ÁREA ==========
+        function switchDesktop(index) {
+            if (index < 0) index = 0;
+            if (index > 2) index = 2;
+            currentDesktop = index;
+            desktopContainer.style.transform = `translateX(-${currentDesktop * 100}%)`;
+            
+            document.querySelectorAll('.indicator-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentDesktop);
+            });
+            document.querySelectorAll('.menu-item').forEach((item, i) => {
+                item.classList.toggle('active', i === currentDesktop);
+            });
+        }
+
+        document.querySelectorAll('.menu-item').forEach((item, idx) => {
+            item.addEventListener('click', () => switchDesktop(idx));
+        });
+
+        // ========== ARQUIVOS ==========
+        function addFileToDesktop(file) {
+            const url = URL.createObjectURL(file);
+            const fileCard = document.createElement('div');
+            fileCard.className = 'file-card';
+            
+            let icon = '📄';
+            if (file.type.startsWith('image/')) icon = '🖼️';
+            else if (file.type.startsWith('video/')) icon = '🎬';
+            
+            fileCard.innerHTML = `<span>${icon}</span><div class="file-name">${file.name.substring(0, 20)}</div>`;
+            fileCard.onclick = () => {
+                if (file.type.startsWith('image/')) window.open(url, '_blank');
+                else if (file.type.startsWith('video/')) {
+                    const win = window.open();
+                    win.document.write(`<video src="${url}" controls autoplay style="width:100%;height:100%"></video>`);
+                }
+            };
+            
+            const placeholder = filesGrid.querySelector('.empty-placeholder');
+            if (placeholder && filesGrid.children.length === 1) filesGrid.removeChild(placeholder);
+            filesGrid.appendChild(fileCard);
+            mediaElements.push(fileCard);
+        }
+
+        document.getElementById('upload-btn')?.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            Array.from(e.target.files).forEach(f => addFileToDesktop(f));
+            fileInput.value = '';
+        });
+
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => {
+            e.preventDefault();
+            Array.from(e.dataTransfer.files).forEach(f => addFileToDesktop(f));
+        });
+
+        // ========== PESQUISA VOZ ==========
+        let recognition = null;
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.onresult = (e) => {
+                const query = e.results[0][0].transcript;
+                if (searchResult) searchResult.textContent = `🔍 "${query}"`;
+                if (searchInput) searchInput.value = query;
+                if (searchIframe) searchIframe.src = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+            };
+        }
+
+        voiceBtn?.addEventListener('click', () => {
+            if (recognition) {
+                searchResult.textContent = '🎤 Ouvindo...';
+                recognition.start();
+            } else {
+                searchResult.textContent = '❌ Voz não suportada';
+            }
+        });
+
+        searchInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && searchIframe) {
+                searchIframe.src = `https://www.google.com/search?q=${encodeURIComponent(searchInput.value)}`;
+            }
+        });
+
+        // ========== CÂMERA ==========
+        async function startCamera() {
+            updateStatus('📷 Solicitando câmera...');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user' }
+                });
+                
+                currentStream = stream;
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                await videoElement.play();
+                
+                updateStatus('📸 Câmera Frontal ATIVA | Gestos disponíveis');
+                initMediaPipe();
+                
+            } catch (err) {
+                console.error('Erro na câmera:', err);
+                updateStatus('❌ Erro na câmera: ' + err.name);
+                videoElement.style.display = 'none';
+            }
+        }
+
+        // ========== MEDIAPIPE ==========
+        function drawHand(landmarks) {
+            if (!ctx) return;
+            
+            for (let i = 0; i < landmarks.length; i++) {
+                const x = landmarks[i].x * handCanvas.width;
+                const y = landmarks[i].y * handCanvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#00BFFF';
+                ctx.fill();
+            }
+            
+            const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
+            ctx.beginPath();
+            ctx.strokeStyle = '#00BFFF';
+            ctx.lineWidth = 2;
+            for (let conn of connections) {
+                const p1 = landmarks[conn[0]];
+                const p2 = landmarks[conn[1]];
+                ctx.moveTo(p1.x * handCanvas.width, p1.y * handCanvas.height);
+                ctx.lineTo(p2.x * handCanvas.width, p2.y * handCanvas.height);
+                ctx.stroke();
+            }
+        }
+
+        function detectGestures(landmarks) {
+            // Swipe
+            const currentX = landmarks[0].x;
+            if (lastHandX !== null && (Date.now() - lastSwipeTime) > 500) {
+                const delta = currentX - lastHandX;
+                if (delta > 0.04) switchDesktop(currentDesktop - 1);
+                else if (delta < -0.04) switchDesktop(currentDesktop + 1);
+                if (Math.abs(delta) > 0.04) lastSwipeTime = Date.now();
+            }
+            lastHandX = currentX;
+            
+            // Clique com indicador
+            const indexTip = landmarks[8];
+            const indexMcp = landmarks[5];
+            if (indexTip.y < indexMcp.y) {
+                const x = indexTip.x * window.innerWidth;
+                const y = indexTip.y * window.innerHeight;
+                const clickables = document.querySelectorAll('.file-card, .menu-item, .voice-btn, #upload-btn');
+                for (let el of clickables) {
+                    const rect = el.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                        if (!el.hasAttribute('data-hover')) {
+                            el.setAttribute('data-hover', Date.now());
+                        } else if (Date.now() - parseInt(el.getAttribute('data-hover')) > 500) {
+                            el.click();
+                            el.removeAttribute('data-hover');
+                        }
+                    } else {
+                        el.removeAttribute('data-hover');
+                    }
+                }
+            }
+        }
+
+        function onHandResults(results) {
+            if (!ctx || !handCanvas) return;
+            ctx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+            
+            if (handCanvas.width !== window.innerWidth || handCanvas.height !== window.innerHeight) {
+                handCanvas.width = window.innerWidth;
+                handCanvas.height = window.innerHeight;
+            }
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawHand(landmarks);
+                    detectGestures(landmarks);
+                }
+            }
+        }
+
+        function initMediaPipe() {
+            if (!videoElement.srcObject) return;
+            
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            hands.onResults(onHandResults);
+            
+            cameraProcessor = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (hands && videoElement.srcObject) {
+                        await hands.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+            cameraProcessor.start();
+        }
+
+        // ========== INICIALIZAR ==========
+        function init() {
+            updateStatus('🟢 INICIANDO...');
+            startCamera();
+            
+            // Redimensionar canvas
+            window.addEventListener('resize', () => {
+                if (handCanvas) {
+                    handCanvas.width = window.innerWidth;
+                    handCanvas.height = window.innerHeight;
+                }
+            });
+            
+            handCanvas.width = window.innerWidth;
+            handCanvas.height = window.innerHeight;
+        }
+
+        init();
+        console.log('🚀 HUD Iniciado!');
+    </script>
 </body>
 </html>
