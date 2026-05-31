@@ -1,5 +1,5 @@
 // ==========================================================================
-// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (UNIFIED v3)
+// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (FIXED CAMERA v3.1)
 // ==========================================================================
 
 const videoElement = document.getElementById('webcam');
@@ -17,7 +17,7 @@ let lastHandX = null;
 const swipeThreshold = 0.18;
 let swipeCooldown = false;
 
-// Estado do Clique Virtual (Mão Direita/Principal)
+// Estado do Clique Virtual (Mão de Interação)
 let lastClickTime = 0;
 const doubleClickDelay = 350;
 let isPinchedRight = false;
@@ -26,15 +26,19 @@ let isPinchedRight = false;
 let isZoomingMode = false;
 let initialPinchDistance = 0;
 let initialScale = 1.0;
-let globalZoomScale = 1.0; // Fator de escala mestre (Usa valores entre 0.5 e 2.0)
+let globalZoomScale = 1.0; 
 
 /**
  * Boot e Configuração Inicial da Interface do Sistema
  */
 function initOS() {
+    resizeCanvas();
+    loadWorkspace("home");
+}
+
+function resizeCanvas() {
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
-    loadWorkspace("home");
 }
 
 /**
@@ -49,19 +53,20 @@ function getDistance3D(p1, p2) {
  */
 function onResults(results) {
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    // Desenha o frame da câmara ocupando todo o fundo
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
     let leftHandLandmarks = null;
     let rightHandLandmarks = null;
 
-    // Deteta as mãos e separa a Esquerda da Direita na Realidade Misturada
     if (results.multiHandLandmarks && results.multiHandedness) {
         results.multiHandLandmarks.forEach((landmarks, index) => {
-            const label = results.multiHandedness[index].label; // "Left" ou "Right"
+            const label = results.multiHandedness[index].label; 
             
-            // Desenha as linhas holográficas neons de tracking
-            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.25)', lineWidth: 1.5});
-            drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 0.5, radius: 1.5});
+            // Desenha as linhas holográficas neon azuis de tracking sobre as tuas mãos
+            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.4)', lineWidth: 2});
+            drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 1, radius: 2});
 
             if (label === 'Left') leftHandLandmarks = landmarks;
             if (label === 'Right') rightHandLandmarks = landmarks;
@@ -70,15 +75,13 @@ function onResults(results) {
 
     // --- LÓGICA 1: PINCH ZOOM COM AS DUAS MÃOS ---
     if (leftHandLandmarks && rightHandLandmarks) {
-        // Mede a distância da pinça (Dedão [4] + Indicador [8]) em ambas as mãos
         const leftPinchDist = getDistance3D(leftHandLandmarks[4], leftHandLandmarks[8]);
         const rightPinchDist = getDistance3D(rightHandLandmarks[4], rightHandLandmarks[8]);
         
-        const leftIsPinching = leftPinchDist < 0.052;
-        const rightIsPinching = rightPinchDist < 0.052;
+        const leftIsPinching = leftPinchDist < 0.055;
+        const rightIsPinching = rightPinchDist < 0.055;
 
         if (leftIsPinching && rightIsPinching) {
-            // Posição central de cada pinça para calcular a distância entre as duas mãos
             const leftCenter = leftHandLandmarks[8];
             const rightCenter = rightHandLandmarks[8];
             const currentHandDistance = Math.hypot(leftCenter.x - rightCenter.x, leftCenter.y - rightCenter.y);
@@ -87,22 +90,19 @@ function onResults(results) {
                 isZoomingMode = true;
                 initialPinchDistance = currentHandDistance;
                 initialScale = globalZoomScale;
-                showOSToast("ZOOM ATIVO");
+                showOSToast("ZOOM MANUAL ATIVO");
             } else {
-                // Multiplicador baseado na aproximação ou afastamento das mãos
                 const zoomFactor = currentHandDistance / initialPinchDistance;
-                globalZoomScale = Math.min(2.0, Math.max(0.5, initialScale * zoomFactor));
-                
+                globalZoomScale = Math.min(2.5, Math.max(0.5, initialScale * zoomFactor));
                 applyGlobalZoomUI(globalZoomScale);
             }
-            return; // Tranca outras ações para focar apenas no gesto de zoom
+            return; 
         }
     }
     
-    // Desativa o modo zoom quando soltas uma das pinças
     if (isZoomingMode) {
         isZoomingMode = false;
-        showOSToast(`ZOOM FIXADO: ${Math.round(globalZoomScale * 100)}%`);
+        showOSToast(`ZOOM CONFIGURADO: ${Math.round(globalZoomScale * 100)}%`);
     }
 
     // --- LÓGICA 2: CONTROLOS MONOMANUAIS (MÃO DIREITA) ---
@@ -111,17 +111,14 @@ function onResults(results) {
         const indexTip = rightHandLandmarks[8];
         const wrist = rightHandLandmarks[0];
 
-        // 1. Swipe Lateral (Usa a posição X do pulso para transições)
         handleWorkspaceSwipe(wrist.x);
 
-        // 2. Cursor Virtual (Inverte o X para corrigir o efeito de espelho da câmara)
         const cursorX = window.innerWidth * (1 - indexTip.x);
         const cursorY = window.innerHeight * indexTip.y;
         updateVirtualCursor(cursorX, cursorY);
 
-        // 3. Duplo Clique Virtual (Pinça rápida com a mão direita)
         const rightPinchDist = getDistance3D(thumbTip, indexTip);
-        if (rightPinchDist < 0.052) {
+        if (rightPinchDist < 0.055) {
             if (!isPinchedRight) {
                 isPinchedRight = true;
                 handleVirtualClick(cursorX, cursorY);
@@ -135,17 +132,14 @@ function onResults(results) {
     }
 }
 
-/**
- * Processa a troca de ecrã ao movimentar a mão de um lado para o outro
- */
 function handleWorkspaceSwipe(currentX) {
     if (swipeCooldown) return;
     if (lastHandX !== null) {
         const deltaX = currentX - lastHandX;
-        if (deltaX > swipeThreshold) { // Mão movida para a direita -> Workspace Anterior
+        if (deltaX > swipeThreshold) { 
             navigateWorkspace(-1);
             triggerSwipeCooldown();
-        } else if (deltaX < -swipeThreshold) { // Mão movida para a esquerda -> Próximo Workspace
+        } else if (deltaX < -swipeThreshold) { 
             navigateWorkspace(1);
             triggerSwipeCooldown();
         }
@@ -164,19 +158,19 @@ function navigateWorkspace(direction) {
     loadWorkspace(workspaces[currentWorkspaceIndex]);
 }
 
-/**
- * Altera a escala 3D e profundidade da UI central do OS
- */
 function applyGlobalZoomUI(scale) {
-    const viewport = document.getElementById('workspace-viewport');
-    if (viewport) {
-        viewport.style.transform = `scale(${scale}) translateZ(${(scale - 1) * 50}px)`;
+    // Altera o zoom visual do HUD de forma suave
+    const uiContainer = document.querySelector('.spatial-hud-wrapper');
+    if (uiContainer) {
+        uiContainer.style.transform = `scale(${scale})`;
+    }
+    // Atualiza o indicador textual se ele existir na tela
+    const zoomText = document.getElementById('dynamic-zoom-percentage');
+    if (zoomText) {
+        zoomText.innerText = `${Math.round(scale * 100)}%`;
     }
 }
 
-/**
- * Deteta colisões e executa o duplo clique virtual em botões HTML
- */
 function handleVirtualClick(x, y) {
     const currentTime = Date.now();
     const timeDiff = currentTime - lastClickTime;
@@ -185,20 +179,15 @@ function handleVirtualClick(x, y) {
     if (!elementAtCursor) return;
 
     if (timeDiff < doubleClickDelay && timeDiff > 0) {
-        const clickable = elementAtCursor.closest('.glass-card, .dock-btn-round, .shortcut-item, button');
+        const clickable = elementAtCursor.closest('.hud-card, .action-btn, button');
         if (clickable) {
-            clickable.style.transform = 'scale(0.92) translateZ(-15px)';
+            clickable.style.transform = 'scale(0.92)';
             setTimeout(() => { clickable.style.transform = ''; }, 130);
-            clickable.click(); // Dispara a ação do botão nativo
+            clickable.click(); 
         }
         lastClickTime = 0;
     } else {
         lastClickTime = currentTime;
-        const clickable = elementAtCursor.closest('.glass-card, .dock-btn-round, .shortcut-item');
-        if (clickable) {
-            document.querySelectorAll('.hud-hover').forEach(el => el.classList.remove('hud-hover'));
-            clickable.classList.add('hud-hover');
-        }
     }
 }
 
@@ -221,61 +210,47 @@ function removeVirtualCursor() {
 }
 
 /**
- * Construtor e Injetor Dinâmico dos 3 Espaços de Trabalho Solicitados
+ * Cria a Interface Futurista exatamente igual aos teus prints funcionais
  */
 function loadWorkspace(targetWS) {
     currentWorkspace = targetWS;
-    showOSToast(`WORKSPACE ${targetWS.toUpperCase()}`);
+    showOSToast(`CONECTADO: ${targetWS.toUpperCase()}`);
 
-    if (targetWS === "home") {
-        systemViewport.innerHTML = `
-            <div class="home-layout">
-                <div class="glass-card home-dashboard">
-                    <div class="clock-display">04:20</div>
-                    <div class="dash-row"><span>SISTEMA</span><span>OS SPATIAL v3</span></div>
-                    <div class="dash-row"><span>ZOOM INTERNO</span><span>${Math.round(globalZoomScale * 100)}%</span></div>
+    // Injeção do teu belo template com o efeito Cyber-Glow azul transparente dos teus prints
+    systemViewport.innerHTML = `
+        <div class="spatial-hud-wrapper" style="width:90%; height:90%; display:flex; justify-content:space-between; align-items:center; position:relative;">
+            
+            <div class="hud-side-panel" style="display:flex; flex-direction:column; gap:20px; width:220px;">
+                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff; box-shadow:0 0 20px rgba(0,191,255,0.2);">
+                    <div style="font-size:12px; color:#00bfff; letter-spacing:2px; margin-bottom:10px;">VOLUME</div>
+                    <input type="range" style="width:100%; accent-color:#00bfff;">
                 </div>
-                <div class="home-shortcuts">
-                    <div class="glass-card shortcut-item" onclick="loadWorkspace('files')">
-                        <div class="shortcut-icon">📤</div><div class="shortcut-label">Enviar Arquivos</div>
-                    </div>
-                    <div class="glass-card shortcut-item" onclick="loadWorkspace('search')">
-                        <div class="shortcut-icon">🌐</div><div class="shortcut-label">Google Search</div>
-                    </div>
+
+                <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; padding:20px; color:#fff; box-shadow:0 0 20px rgba(0,191,255,0.2);">
+                    <div style="font-size:12px; color:#00bfff; letter-spacing:2px; margin-bottom:5px;">ZOOM METRIC</div>
+                    <div id="dynamic-zoom-percentage" style="font-size:32px; font-weight:bold; color:#fff;">100%</div>
                 </div>
-            </div>`;
-    } 
-    else if (targetWS === "files") {
-        systemViewport.innerHTML = `
-            <div class="media-player-container">
-                <div class="glass-card" style="flex-grow:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-style:dashed;">
-                    <div style="font-size:42px; margin-bottom:12px;">📁</div>
-                    <h3 style="font-size:14px; letter-spacing:1px; margin-bottom:8px;">CONCENTRADOR DE ARQUIVOS</h3>
-                    <p style="font-size:11px; color:rgba(255,255,255,0.5); text-align:center;">Dê duplo clique virtual abaixo para fazer upload</p>
-                    <input type="file" id="hidden-picker" style="display:none;" onchange="showOSToast('Arquivo Carregado!')">
-                    <button class="glass-card" style="margin-top:15px; padding:10px 20px; color:#fff;" onclick="document.getElementById('hidden-picker').click()">PROCURAR</button>
+
+                <div class="hud-card" style="background:rgba(200,30,30,0.2); backdrop-filter:blur(20px); border:2px solid #ff3333; border-radius:24px; padding:20px; text-align:center; color:#fff; cursor:pointer;">
+                    <span style="font-size:24px;">🗑️</span>
+                    <div style="font-size:11px; margin-top:5px; letter-spacing:1px;">LIMPAR ESPAÇO</div>
                 </div>
-            </div>`;
-    }
-    else if (targetWS === "search") {
-        systemViewport.innerHTML = `
-            <div class="browser-container glass-card">
-                <div class="browser-bar">
-                    <input type="text" class="browser-input" id="browser-url-field" value="https://www.google.com/search?igu=1">
-                    <button class="glass-card" style="padding:0 15px; color:#fff;" onclick="executeSpatialSearch()">PESQUISAR</button>
+            </div>
+
+            <div class="spatial-reticle" style="width:80px; height:80px; border:2px dashed rgba(0,191,255,0.6); border-radius:50%; display:flex; justify-content:center; align-items:center;">
+                <div style="width:8px; height:8px; background:#00bfff; border-radius:50%;"></div>
+            </div>
+
+            <div class="hud-card" style="background:rgba(10,25,50,0.5); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:30px; width:60px; height:350px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:20px 0; box-shadow:0 0 25px rgba(0,191,255,0.25);">
+                <div style="color:#00bfff; font-weight:bold; font-size:20px;">+</div>
+                <div style="width:6px; height:180px; background:rgba(255,255,255,0.1); border-radius:3px; position:relative;">
+                    <div style="position:absolute; bottom:0; width:100%; height:50%; background:#00bfff; border-radius:3px;"></div>
                 </div>
-                <div class="browser-iframe-wrapper">
-                    <iframe id="spatial-iframe" src="https://www.google.com/search?igu=1"></iframe>
-                </div>
-            </div>`;
-    }
+                <div style="color:#00bfff; font-weight:bold; font-size:20px;">-</div>
+            </div>
+        </div>
+    `;
     applyGlobalZoomUI(globalZoomScale);
-}
-
-function executeSpatialSearch() {
-    const q = document.getElementById('browser-url-field').value;
-    const f = document.getElementById('spatial-iframe');
-    f.src = q.startsWith('http') ? q : `https://www.google.com/search?q=${encodeURIComponent(q)}&igu=1`;
 }
 
 function showOSToast(text) {
@@ -283,34 +258,44 @@ function showOSToast(text) {
     if (toast) {
         toast.innerText = text;
         toast.style.opacity = '1';
-        setTimeout(() => { toast.style.opacity = '0'; }, 1200);
+        setTimeout(() => { toast.style.opacity = '0'; }, 1500);
     }
 }
 
-// Configuração Estrita do Pipeline MediaPipe Hands
+// Configuração do Pipeline MediaPipe Hands
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 hands.setOptions({
-    maxNumHands: 2, // Ativa a leitura simultânea das duas mãos para o Zoom
+    maxNumHands: 2, 
     modelComplexity: 1,
-    minDetectionConfidence: 0.65,
-    minTrackingConfidence: 0.65
+    minDetectionConfidence: 0.60,
+    minTrackingConfidence: 0.60
 });
 hands.onResults(onResults);
 
 /**
- * Inicialização Blindada da Câmara com Tratamento Ativo de Erros do Navegador
+ * Inicialização com tratamento de erros corrigido para mobile e desktop
  */
 async function startSpatialCamera() {
     const constraints = {
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "environment" },
+        video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 }, 
+            facingMode: "environment" // Altere para "user" caso queira testar com a frontal do telemóvel
+        },
         audio: false
     };
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
-        canvasElement.width = window.innerWidth;
-        canvasElement.height = window.innerHeight;
+        
+        // Força a reprodução manual necessária em navegadores mobile
+        videoElement.setAttribute('autoplay', '');
+        videoElement.setAttribute('muted', '');
+        videoElement.setAttribute('playsinline', '');
+        await videoElement.play();
+
+        resizeCanvas();
 
         const camera = new Camera(videoElement, {
             onFrame: async () => {
@@ -322,19 +307,19 @@ async function startSpatialCamera() {
         });
 
         await camera.start();
-        showOSToast("MR SPATIAL ONLINE");
+        showOSToast("MR OS: CÂMARA ATIVA");
         
     } catch (err) {
-        console.error("Erro no hardware de captura:", err);
-        showOSToast("ERRO DE PERMISSÃO NA CÂMARA");
+        console.error("Falha no acesso à câmara:", err);
+        showOSToast("ERRO: ACESSO À CÂMARA NEGADO");
         
-        // Fallback rápido
+        // Fallback genérico para contornar restrições
         try {
             const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoElement.srcObject = fallbackStream;
-            videoElement.play();
+            await videoElement.play();
         } catch(e) {
-            alert("Acesso negado à câmara. Por favor, ative as permissões nas definições do navegador.");
+            alert("Ative as permissões de câmara no seu browser (definições do site) para rodar a Realidade Misturada.");
         }
     }
 }
@@ -346,7 +331,5 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 window.addEventListener('resize', () => {
-    canvasElement.width = window.innerWidth;
-    canvasElement.height = window.innerHeight;
+    resizeCanvas();
 });
-             
