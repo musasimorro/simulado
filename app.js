@@ -130,23 +130,26 @@ function onResults(results) {
                     if (hiddenVideo.paused) hiddenVideo.play(); else hiddenVideo.pause();
                     lastActionTime = now;
                 }
-                else if (hitID === 'card-zoom' || hitID === 'v-up' || hitID === 'panel-slider-vertical') {
-                    mediaScale = Math.min(2.0, mediaScale + 0.1);
-                    document.getElementById('zoom-txt').innerText = `${Math.round(mediaScale * 200)}%`;
-                    document.getElementById('zoom-bar').style.width = `${(mediaScale / 2) * 100}%`;
-                    document.getElementById('v-bar-fill').style.height = `${(mediaScale / 2) * 100}%`;
+                // Controle Unificado do Slider da Direita (Muda volume do vídeo carregado)
+                else if (hitID === 'v-up' || hitID === 'panel-slider-vertical') {
+                    if(mediaType === 'video') {
+                        hiddenVideo.volume = Math.min(1.0, hiddenVideo.volume + 0.1);
+                        document.getElementById('v-bar-fill').style.height = `${hiddenVideo.volume * 100}%`;
+                    }
                     lastActionTime = now;
                 }
                 else if (hitID === 'v-down') {
-                    mediaScale = Math.max(0.2, mediaScale - 0.1);
-                    document.getElementById('zoom-txt').innerText = `${Math.round(mediaScale * 200)}%`;
-                    document.getElementById('zoom-bar').style.width = `${(mediaScale / 2) * 100}%`;
-                    document.getElementById('v-bar-fill').style.height = `${(mediaScale / 2) * 100}%`;
+                    if(mediaType === 'video') {
+                        hiddenVideo.volume = Math.max(0.0, hiddenVideo.volume - 0.1);
+                        document.getElementById('v-bar-fill').style.height = `${hiddenVideo.volume * 100}%`;
+                    }
                     lastActionTime = now;
                 }
-                else if (hitID === 'card-volume' && mediaType === 'video') {
-                    hiddenVideo.volume = Math.min(1.0, hiddenVideo.volume + 0.1);
-                    document.getElementById('vol-bar').style.width = `${hiddenVideo.volume * 100}%`;
+                // Controle do Painel de Zoom Esquerdo
+                else if (hitID === 'card-zoom') {
+                    mediaScale = mediaScale >= 1.5 ? 0.4 : mediaScale + 0.2;
+                    document.getElementById('zoom-txt').innerText = `${Math.round(mediaScale * 200)}%`;
+                    document.getElementById('zoom-bar').style.width = `${(mediaScale / 1.5) * 100}%`;
                     lastActionTime = now;
                 }
                 else if (hitID === 'nav-refresh') {
