@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR MR Media Suite - Fix Botão</title>
+    <title>VR MR Spatial Suite - Ultimate Interface</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -43,13 +43,14 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             color: #00FF00;
             padding: 10px 20px;
             border-radius: 20px;
             z-index: 3;
             font-weight: bold;
             border: 1px solid #00FF00;
+            font-size: 14px;
         }
         #file_input { display: none; }
     </style>
@@ -86,26 +87,31 @@
         let lastActionTime = 0;
         let buttons = [];
         let trashBtn = {};
-        let uploadBtn = {}; // Novo botão virtual para arquivos
+        let uploadBtn = {};
 
         function updateElementPositions() {
             const w = canvasElement.width;
             const h = canvasElement.height;
             
-            // Botões de controlo centrais inferiores
-            buttons = [
-                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 210, y: h - 90, w: 100, h: 45, active: false },
-                { id: 'vup', label: 'VOL +', x: w/2 - 100, y: h - 90, w: 75, h: 45, active: false },
-                { id: 'vdown', label: 'VOL -', x: w/2 - 15, y: h - 90, w: 75, h: 45, active: false },
-                { id: 'zout', label: 'ZOOM -', x: w/2 + 70, y: h - 90, w: 75, h: 45, active: false },
-                { id: 'zin', label: 'ZOOM +', x: w/2 + 155, y: h - 90, w: 75, h: 45, active: false }
-            ];
-
-            // Lixeira no Canto Superior Esquerdo
+            // LIXEIRA: Superior Esquerda
             trashBtn = { x: 60, y: 70, radius: 35 };
 
-            // Botão virtual "ABRIR MÍDIA" no Canto Inferior Direito (Sempre visível e acessível)
-            uploadBtn = { x: w - 150, y: h - 90, w: 130, h: 45, active: false };
+            // BOTÃO ABRIR ARQUIVOS: Mais alto, na lateral direita superior
+            uploadBtn = { x: w - 160, y: 50, w: 130, h: 50, active: false };
+
+            // BOTÕES ESPACIAIS SEPARADOS NAS LATERAIS
+            buttons = [
+                // ZOOM DO LADO ESQUERDO (Abaixo da lixeira)
+                { id: 'zin', label: 'ZOOM +', x: 20, y: 150, w: 90, h: 50, active: false },
+                { id: 'zout', label: 'ZOOM -', x: 20, y: 220, w: 90, h: 50, active: false },
+
+                // VOLUME DO LADO DIREITO
+                { id: 'vup', label: 'VOL +', x: w - 110, y: 150, w: 90, h: 50, active: false },
+                { id: 'vdown', label: 'VOL -', x: w - 110, y: 220, w: 90, h: 50, active: false },
+
+                // PLAY/PAUSE CENTRALIZADO ABAIXO DA MÍDIA
+                { id: 'play', label: 'PLAY/PAUSE', x: w/2 - 60, y: h - 90, w: 120, h: 50, active: false }
+            ];
         }
 
         function resizeCanvas() {
@@ -126,7 +132,7 @@
                 mediaType = 'video';
                 hiddenImg.src = "";
                 hiddenVideo.src = fileURL;
-                hiddenVideo.play();
+                hiddenVideo.play().catch(err => console.log("Aguardando interação"));
                 hiddenVideo.volume = 0.5;
             } else {
                 mediaType = 'image';
@@ -135,7 +141,7 @@
                 hiddenImg.src = fileURL;
             }
             mediaX = canvasElement.width / 2 - 120;
-            mediaY = canvasElement.height / 2 - 150;
+            mediaY = canvasElement.height / 2 - 120;
         });
 
         function getDistance(p1, p2) {
@@ -143,12 +149,12 @@
         }
 
         function drawInterface() {
-            // 1. DESENHA O BOTÃO DE ABRIR ARQUIVOS (Fica sempre visível na tela)
+            // Desenha Botão Abrir Arquivo (Sempre visível)
             canvasCtx.fillStyle = uploadBtn.active ? 'rgba(0, 123, 255, 1)' : 'rgba(0, 123, 255, 0.75)';
             canvasCtx.strokeStyle = '#FFFFFF';
             canvasCtx.lineWidth = 2;
             canvasCtx.beginPath();
-            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 20);
+            canvasCtx.roundRect(uploadBtn.x, uploadBtn.y, uploadBtn.w, uploadBtn.h, 25);
             canvasCtx.fill();
             canvasCtx.stroke();
 
@@ -158,42 +164,13 @@
             canvasCtx.textBaseline = 'middle';
             canvasCtx.fillText('ABRIR MÍDIA 📂', uploadBtn.x + uploadBtn.w/2, uploadBtn.y + uploadBtn.h/2);
 
-            if (!mediaType) return;
-
-            // 2. DESENHA OS BOTÕES DE CONTROLO DE SESSÃO
-            buttons.forEach(btn => {
-                if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
-
-                canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.85)' : 'rgba(0, 0, 0, 0.75)';
-                canvasCtx.strokeStyle = '#00FF00';
-                canvasCtx.lineWidth = 2;
-                
-                canvasCtx.beginPath();
-                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 8);
-                canvasCtx.fill();
-                canvasCtx.stroke();
-
-                canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
-                canvasCtx.font = 'bold 11px sans-serif';
-                canvasCtx.textAlign = 'center';
-                canvasCtx.textBaseline = 'middle';
-                canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
-            });
-
-            // 3. DESENHA A LIXEIRA SUPERIOR
+            // Desenha Lixeira (Sempre visível)
             canvasCtx.save();
             canvasCtx.beginPath();
             canvasCtx.arc(trashBtn.x, trashBtn.y, trashBtn.radius, 0, 2 * Math.PI);
-            
-            if (overTrash) {
-                canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.9)';
-                canvasCtx.strokeStyle = '#FF0000';
-                canvasCtx.lineWidth = 4;
-            } else {
-                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                canvasCtx.strokeStyle = '#FF3333';
-                canvasCtx.lineWidth = 2;
-            }
+            canvasCtx.fillStyle = overTrash ? 'rgba(255, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.6)';
+            canvasCtx.strokeStyle = overTrash ? '#FF0000' : '#FF3333';
+            canvasCtx.lineWidth = overTrash ? 4 : 2;
             canvasCtx.fill();
             canvasCtx.stroke();
 
@@ -203,6 +180,28 @@
             canvasCtx.textBaseline = 'middle';
             canvasCtx.fillText('🗑️', trashBtn.x, trashBtn.y);
             canvasCtx.restore();
+
+            if (!mediaType) return;
+
+            // Desenha Botões Laterais (Volume e Zoom) e Controle Inferior
+            buttons.forEach(btn => {
+                if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
+
+                canvasCtx.fillStyle = btn.active ? 'rgba(0, 255, 0, 0.9)' : 'rgba(0, 0, 0, 0.75)';
+                canvasCtx.strokeStyle = '#00FF00';
+                canvasCtx.lineWidth = 2;
+                
+                canvasCtx.beginPath();
+                canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+                canvasCtx.fill();
+                canvasCtx.stroke();
+
+                canvasCtx.fillStyle = btn.active ? '#000000' : '#FFFFFF';
+                canvasCtx.font = 'bold 12px sans-serif';
+                canvasCtx.textAlign = 'center';
+                canvasCtx.textBaseline = 'middle';
+                canvasCtx.fillText(btn.label, btn.x + btn.w/2, btn.y + btn.h/2);
+            });
         }
 
         function onResults(results) {
@@ -220,7 +219,7 @@
                 displayW = currentMediaElement.videoWidth || currentMediaElement.width || 400;
                 displayH = currentMediaElement.videoHeight || currentMediaElement.height || 300;
                 
-                const baseFactor = (canvasElement.width * 0.45) / displayW;
+                const baseFactor = (canvasElement.width * 0.4) / displayW;
                 displayW = displayW * baseFactor * mediaScale;
                 displayH = displayH * baseFactor * mediaScale;
 
@@ -233,7 +232,7 @@
                 }
 
                 canvasCtx.save();
-                canvasCtx.globalAlpha = 0.75;
+                canvasCtx.globalAlpha = 0.8;
                 canvasCtx.drawImage(currentMediaElement, mediaX, mediaY, displayW, displayH);
                 
                 if (isDragging) {
@@ -254,35 +253,44 @@
                 const thumbTip = landmarks[4];
                 const indexTip = landmarks[8];
 
-                // Ponto exato do cruzamento dos dedos para ativação por pinça
+                // 1. Ponto de Interação A: Ponto médio da PINÇA
                 const pinchX = ((thumbTip.x + indexTip.x) / 2) * canvasElement.width;
                 const pinchY = ((thumbTip.y + indexTip.y) / 2) * canvasElement.height;
+                const isPinching = getDistance(thumbTip, indexTip) < 0.055;
 
-                const isPinching = getDistance(thumbTip, indexTip) < 0.06;
+                // 2. Ponto de Interação B: APONTAR COM INDICADOR (Coordenada real da ponta do indicador)
+                const pointerX = indexTip.x * canvasElement.width;
+                const pointerY = indexTip.y * canvasElement.height;
+                
+                // Determina qual ponto usar baseado na intenção do usuário
+                let targetX = isPinching ? pinchX : pointerX;
+                let targetY = isPinching ? pinchY : pointerY;
+
                 const now = Date.now();
+                let hitButton = false;
 
-                if (isPinching) {
-                    let hitButton = false;
-
-                    // A. Colisão com o botão de Upload Virtual
-                    if (pinchX >= uploadBtn.x && pinchX <= uploadBtn.x + uploadBtn.w && pinchY >= uploadBtn.y && pinchY <= uploadBtn.y + uploadBtn.h) {
+                // Executa colisão para os botões virtuais (Aceita Pinça OU Apontar com Indicador)
+                if (isPinching || (getDistance(thumbTip, indexTip) > 0.09)) { 
+                    
+                    // Verificação do Botão de Upload
+                    if (targetX >= uploadBtn.x && targetX <= uploadBtn.x + uploadBtn.w && targetY >= uploadBtn.y && targetY <= uploadBtn.y + uploadBtn.h) {
                         uploadBtn.active = true;
                         hitButton = true;
                         if (now - lastActionTime > 800) {
-                            fileInput.click(); // Abre o seletor nativo do telemóvel
+                            fileInput.click();
                             lastActionTime = now;
                         }
                     }
 
-                    // B. Colisão com os botões de controlo normais
+                    // Verificação dos botões de Controle
                     buttons.forEach(btn => {
                         if (mediaType === 'image' && (btn.id === 'play' || btn.id === 'vup' || btn.id === 'vdown')) return;
                         
-                        if (pinchX >= btn.x && pinchX <= btn.x + btn.w && pinchY >= btn.y && pinchY <= btn.y + btn.h) {
+                        if (targetX >= btn.x && targetX <= btn.x + btn.w && targetY >= btn.y && targetY <= btn.y + btn.h) {
                             btn.active = true;
                             hitButton = true;
 
-                            if (now - lastActionTime > 500) {
+                            if (now - lastActionTime > 600) {
                                 if (btn.id === 'play') {
                                     if (hiddenVideo.paused) hiddenVideo.play(); else hiddenVideo.pause();
                                 } else if (btn.id === 'vup') {
@@ -290,23 +298,22 @@
                                 } else if (btn.id === 'vdown') {
                                     hiddenVideo.volume = Math.max(0, hiddenVideo.volume - 0.1);
                                 } else if (btn.id === 'zin') {
-                                    mediaScale = Math.min(2.0, mediaScale + 0.1);
+                                    mediaScale = Math.min(2.5, mediaScale + 0.1);
                                 } else if (btn.id === 'zout') {
-                                    mediaScale = Math.max(0.2, mediaScale - 0.1);
+                                    mediaScale = Math.max(0.15, mediaScale - 0.1);
                                 }
                                 lastActionTime = now;
                             }
                         }
                     });
+                }
 
-                    // C. Se não tocou em botões, arrasta a mídia existente
-                    if (!hitButton && mediaType) {
-                        isDragging = true;
-                        mediaX = pinchX - (displayW / 2);
-                        mediaY = pinchY - (displayH / 2);
-                    }
-
-                } else {
+                // Arrastar mídia apenas usando o gesto de PINÇA tradicional
+                if (isPinching && !hitButton && mediaType) {
+                    isDragging = true;
+                    mediaX = pinchX - (displayW / 2);
+                    mediaY = pinchY - (displayH / 2);
+                } else if (!isPinching) {
                     if (isDragging && overTrash) {
                         mediaType = null;
                         hiddenVideo.pause();
@@ -330,8 +337,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.55,
-            minTrackingConfidence: 0.55
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
         });
 
         hands.onResults(onResults);
