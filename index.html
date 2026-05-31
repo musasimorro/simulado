@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MR Spatial Suite - Holographic HUD v2</title>
+    <title>MR Spatial Suite - Holographic HUD v3</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -28,16 +28,7 @@
             <button class="hud-btn" id="btn-dots">⋮</button>
         </header>
 
-        <aside class="panel-left">
-            <div class="hud-card glass-card" id="card-volume">
-                <div class="card-header">VOLUME</div>
-                <div class="slider-container-horizontal">
-                    <span class="step-icon">🔈</span>
-                    <div class="hud-track"><div class="hud-bar" id="vol-bar" style="width: 50%;"></div></div>
-                    <span class="step-icon">🔊</span>
-                </div>
-            </div>
-
+        <aside class="panel-left spatial-tilt-left">
             <div class="hud-card glass-card" id="card-zoom">
                 <div class="card-header">ZOOM</div>
                 <div class="hud-display" id="zoom-txt">100%</div>
@@ -49,17 +40,17 @@
             </div>
 
             <div class="hud-card glass-card trigger-btn" id="card-trash">
-                <div class="trash-icon">🗑️</div>
+                <div class="trash-icon" style="font-size: 24px;">🗑️</div>
                 <div class="card-label">LIXEIRA</div>
             </div>
 
             <div class="hud-card glass-card trigger-btn" id="card-upload">
-                <div class="upload-icon">📂</div>
+                <div class="upload-icon" style="font-size: 24px;">📂</div>
                 <div class="card-label">ABRIR ARQUIVO</div>
             </div>
         </aside>
 
-        <aside class="panel-right glass-card" id="panel-slider-vertical">
+        <aside class="panel-right glass-card spatial-tilt-right" id="panel-slider-vertical">
             <button class="hud-btn-sm" id="v-up">＋</button>
             <div class="hud-track-vertical">
                 <div class="hud-bar-vertical" id="v-bar-fill" style="height: 50%;"></div>
