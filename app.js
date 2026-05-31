@@ -1,5 +1,5 @@
 // ==========================================================================
-// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (TOTAL INTEGRATION v4.0)
+// MR SPATIAL OS - CORE ENGINE & GESTURE CONTROLLER (NATIVE LOOP STABLE v4.5)
 // ==========================================================================
 
 const videoElement = document.getElementById('webcam');
@@ -13,32 +13,31 @@ let currentWorkspaceIndex = 0;
 let currentWorkspace = "home";
 let fileSystemHandle = null; 
 
-// 2. ESTADO DE NAVEGAÇÃO / SWIPE POR MOVIMENTO LATERAL (PULSO)
+// 2. ESTADO DE GESTOS E CONTROLOS ESPACIAIS
 let lastHandX = null;
 const swipeThreshold = 0.18;
 let swipeCooldown = false;
-
-// 3. ESTADO DO CLIQUE VIRTUAL E CURSOR (MÃO DIREITA/PRINCIPAL)
 let lastClickTime = 0;
 const doubleClickDelay = 350;
 let isPinchedRight = false;
 
-// 4. ESTADO DO ZOOM COORDENADO COM DUAS MÃOS
 let isZoomingMode = false;
 let initialPinchDistance = 0;
 let initialScale = 1.0;
 let globalZoomScale = 1.0; 
 
+// Controlos de ciclo de processamento ativo
+let isStreamActive = false;
+
 /**
- * MÓDULO DE INICIALIZAÇÃO DA CÂMERA (CORRIGIDO)
+ * MÓDULO DE INICIALIZAÇÃO NATIVA DA CÂMERA (SEM UTILIÁRIOS CONFLITUOSOS)
  */
 async function requestOSPermissions() {
     showOSToast("A INICIALIZAR ECOSSISTEMA...");
 
-    // SEGURANÇA: Limpa fluxos anteriores para evitar que a câmera trave ocupada
-    if (videoElement && videoElement.srcObject) {
-        const stream = videoElement.srcObject;
-        const tracks = stream.getTracks();
+    // Limpeza radical de qualquer instância ou stream anterior
+    if (videoElement.srcObject) {
+        const tracks = videoElement.srcObject.getTracks();
         tracks.forEach(track => track.stop());
         videoElement.srcObject = null;
     }
@@ -46,7 +45,7 @@ async function requestOSPermissions() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
-                facingMode: "environment", // Ativa a câmera traseira do telemóvel
+                facingMode: "environment", // Garante a câmara de trás do telemóvel
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
             },
@@ -57,26 +56,44 @@ async function requestOSPermissions() {
         videoElement.setAttribute('autoplay', '');
         videoElement.setAttribute('muted', '');
         videoElement.setAttribute('playsinline', '');
-        await videoElement.play();
         
-        // Inicializa o utilitário de animação contínua da câmara do MediaPipe
-        const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                if (videoElement.readyState >= 2) {
-                    await hands.send({ image: videoElement });
-                }
-            },
-            width: 1280, height: 720
-        });
-        camera.start();
+        await videoElement.play();
+        isStreamActive = true;
+        
+        // Arranca o loop de processamento nativo (Substitui o instável new Camera)
+        renderAndTrackLoop();
+        
         showOSToast("CÂMARA MESTRE ONLINE");
     } catch (err) {
-        console.error("Erro na câmara:", err);
-        showOSToast("ERRO: CÂMARA BLOQUEADA");
+        console.error("Erro ao aceder ao hardware de vídeo:", err);
+        showOSToast("ERRO: CÂMARA INDISPONÍVEL");
+        alert("A câmara está presa por outro processo. Feche as abas em segundo plano e recarregue a página.");
     }
 
-    // Carrega o espaço inicial (Home)
     loadWorkspace("home");
+}
+
+/**
+ * LOOP ESPACIAL NATIVO: Evita conflitos de concorrência e envia frames limpos
+ */
+async function renderAndTrackLoop() {
+    if (!isStreamActive) return;
+
+    if (videoElement.readyState >= 2) {
+        try {
+            // Desenha primeiro o frame real da câmara no fundo
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Envia o frame atual diretamente para análise do MediaPipe
+            await hands.send({ image: videoElement });
+        } catch (e) {
+            console.warn("MediaPipe descartou frame ocupado:", e);
+        }
+    }
+    
+    // Executa continuamente sincronizado com a taxa de atualização do ecrã
+    requestAnimationFrame(renderAndTrackLoop);
 }
 
 /**
@@ -109,13 +126,9 @@ function fallbackFileSelector() {
 }
 
 /**
- * LOOP PRINCIPAL: PROCESSAMENTO ANALÍTICO DOS 3 GESTOS ESPACIAIS
+ * CALLBACK DO ECOSSISTEMA MEDIAPIPE: APENAS CALCULA OS GESTOS
  */
 function onResults(results) {
-    // Desenha o feed de vídeo e as conexões da mão no canvas de fundo
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
     let leftHandLandmarks = null;
     let rightHandLandmarks = null;
 
@@ -123,7 +136,7 @@ function onResults(results) {
         results.multiHandLandmarks.forEach((landmarks, index) => {
             const label = results.multiHandedness[index].label; 
             
-            // Renderiza o esqueleto holográfico azul nas tuas mãos
+            // Desenha o esqueleto holográfico por cima da imagem da câmara
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 191, 255, 0.4)', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#00BFFF', lineWidth: 1, radius: 2});
 
@@ -151,7 +164,7 @@ function onResults(results) {
                 globalZoomScale = Math.min(2.5, Math.max(0.5, initialScale * zoomFactor));
                 applyGlobalZoomUI(globalZoomScale);
             }
-            return; // Bloqueia outras interações durante o Zoom global
+            return; 
         }
     }
     
@@ -160,21 +173,18 @@ function onResults(results) {
         showOSToast(`ZOOM FIXADO: ${Math.round(globalZoomScale * 100)}%`);
     }
 
-    // MECÂNICA 2 & 3: SWIPE DE WORKSPACE E CURSOR COM DEDO INDICADOR (MÃO DIREITA)
+    // MECÂNICA 2 & 3: SWIPE E CURSOR INTERATIVO COM A MÃO DIREITA
     if (rightHandLandmarks) {
         const thumbTip = rightHandLandmarks[4];
         const indexTip = rightHandLandmarks[8];
         const wrist = rightHandLandmarks[0];
 
-        // Mecânica 2: Troca de workspace monitorizando a posição horizontal do pulso
         handleWorkspaceSwipe(wrist.x);
 
-        // Mecânica 3: Movimentação do ponteiro virtual pelo indicador direito
         const cursorX = window.innerWidth * (1 - indexTip.x);
         const cursorY = window.innerHeight * indexTip.y;
         updateVirtualCursor(cursorX, cursorY);
 
-        // Deteta gesto de pinça rápida para clique virtual
         const rightPinchDist = getDistance3D(thumbTip, indexTip);
         if (rightPinchDist < 0.055) {
             if (!isPinchedRight) {
@@ -191,17 +201,17 @@ function onResults(results) {
 }
 
 /**
- * GESTÃO DO MOVE LATERAL (SWIPE DE WORKSPACES)
+ * GESTÃO DO INTERCAMBIO DE ESPAÇOS (SWIPE)
  */
 function handleWorkspaceSwipe(currentX) {
     if (swipeCooldown) return;
     if (lastHandX !== null) {
         const deltaX = currentX - lastHandX;
         if (deltaX > swipeThreshold) { 
-            navigateWorkspace(-1); // Mão para a direita -> Volta ecrã
+            navigateWorkspace(-1);
             triggerSwipeCooldown();
         } else if (deltaX < -swipeThreshold) { 
-            navigateWorkspace(1);  // Mão para a esquerda -> Avança ecrã
+            navigateWorkspace(1);
             triggerSwipeCooldown();
         }
     }
@@ -211,7 +221,7 @@ function handleWorkspaceSwipe(currentX) {
 function triggerSwipeCooldown() {
     swipeCooldown = true;
     lastHandX = null;
-    setTimeout(() => { swipeCooldown = false; }, 1000); // 1 segundo de espera
+    setTimeout(() => { swipeCooldown = false; }, 1000);
 }
 
 function navigateWorkspace(direction) {
@@ -219,23 +229,14 @@ function navigateWorkspace(direction) {
     loadWorkspace(workspaces[currentWorkspaceIndex]);
 }
 
-/**
- * APLICAÇÃO DO ZOOM VISUAL NO CSS
- */
 function applyGlobalZoomUI(scale) {
     const uiContainer = document.querySelector('.spatial-hud-wrapper');
-    if (uiContainer) {
-        uiContainer.style.transform = `scale(${scale})`;
-    }
+    if (uiContainer) uiContainer.style.transform = `scale(${scale})`;
+    
     const zoomText = document.getElementById('dynamic-zoom-percentage');
-    if (zoomText) {
-        zoomText.innerText = `${Math.round(scale * 100)}%`;
-    }
+    if (zoomText) zoomText.innerText = `${Math.round(scale * 100)}%`;
 }
 
-/**
- * PROCESSAMENTO DE CLIQUE NOS BOTÕES AZUIS
- */
 function handleVirtualClick(x, y) {
     const currentTime = Date.now();
     const timeDiff = currentTime - lastClickTime;
@@ -261,19 +262,12 @@ function updateVirtualCursor(x, y) {
     if (!pointer) {
         pointer = document.createElement('div');
         pointer.id = 'spatial-pointer';
-        // Criação de estilo rápido inline para o ponteiro
-        pointer.style.position = 'fixed';
-        pointer.style.width = '15px';
-        pointer.style.height = '15px';
-        pointer.style.background = 'cyan';
-        pointer.style.borderRadius = '50%';
-        pointer.style.zIndex = '9999';
-        pointer.style.pointerEvents = 'none';
-        pointer.style.boxShadow = '0 0 10px #00bfff';
         document.body.appendChild(pointer);
     }
     pointer.style.left = `${x}px`;
     pointer.style.top = `${y}px`;
+    if (isPinchedRight) pointer.classList.add('clicking');
+    else pointer.classList.remove('clicking');
 }
 
 function removeVirtualCursor() {
@@ -286,7 +280,7 @@ function getDistance3D(p1, p2) {
 }
 
 /**
- * INJEÇÃO DINÂMICA DOS 3 WORKSPACES SOLICITADOS
+ * CONSTRUTOR DE INTERFACE DOS WORKSPACES
  */
 function loadWorkspace(targetWS) {
     currentWorkspace = targetWS;
@@ -294,7 +288,6 @@ function loadWorkspace(targetWS) {
 
     let innerContent = "";
 
-    // WORKSPACE 1: HOME (Painéis Azuis, Controle de Volume, Zoom e Lixeira)
     if (targetWS === "home") {
         innerContent = `
             <div class="hud-side-panel" style="display:flex; flex-direction:column; gap:20px; width:220px;">
@@ -327,7 +320,6 @@ function loadWorkspace(targetWS) {
             </div>
         `;
     } 
-    // WORKSPACE 2: ARQUIVOS / CONCENTRADOR DE MÍDIA
     else if (targetWS === "files") {
         innerContent = `
             <div class="hud-card" style="width:100%; height:300px; background:rgba(10,25,50,0.6); backdrop-filter:blur(20px); border:2px dashed #00bfff; border-radius:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; padding:20px;">
@@ -337,7 +329,6 @@ function loadWorkspace(targetWS) {
             </div>
         `;
     }
-    // WORKSPACE 3: PESQUISA (Navegador Embutido)
     else if (targetWS === "search") {
         innerContent = `
             <div class="hud-card" style="width:100%; height:400px; background:rgba(10,25,50,0.6); backdrop-filter:blur(20px); border:2px solid #00bfff; border-radius:24px; display:flex; flex-direction:column; overflow:hidden;">
@@ -350,8 +341,7 @@ function loadWorkspace(targetWS) {
         `;
     }
 
-    // Aplica o HTML e mantém o nível de zoom ativo
-    systemViewport.innerHTML = `<div class="spatial-hud-wrapper" style="width:90%; height:90%; display:flex; justify-content:space-between; align-items:center; position:relative; transition: transform 0.1s ease-out;">${innerContent}</div>`;
+    systemViewport.innerHTML = `<div class="spatial-hud-wrapper" style="width:90%; height:90%; display:flex; justify-content:space-between; align-items:center; position:relative;">${innerContent}</div>`;
     applyGlobalZoomUI(globalZoomScale);
 }
 
@@ -372,12 +362,11 @@ function showOSToast(text) {
     }
 }
 
-// CONFIGURAÇÃO DO PIPELINE DO GOOGLE MEDIAPIPE
+// INICIALIZADOR DO ENGINE DE INTELIGÊNCIA ARTIFICIAL
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.60, minTrackingConfidence: 0.60 });
 hands.onResults(onResults);
 
-// CICLO DE VIDA DO ARRANQUE
 window.addEventListener('DOMContentLoaded', () => {
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
@@ -388,4 +377,4 @@ window.addEventListener('resize', () => {
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
 });
-        
+                             
