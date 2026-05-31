@@ -9,7 +9,6 @@ function switchDesktop(index) {
     currentDesktop = index;
     desktopContainer.style.transform = `translateX(-${currentDesktop * 100}%)`;
     
-    // Atualizar indicadores
     document.querySelectorAll('.indicator-dot').forEach((dot, i) => {
         dot.classList.toggle('active', i === currentDesktop);
     });
@@ -19,12 +18,10 @@ function switchDesktop(index) {
 }
 
 function initDesktop() {
-    // Eventos dos botões do menu
     document.querySelectorAll('.menu-item').forEach((item, index) => {
         item.addEventListener('click', () => switchDesktop(index));
     });
     
-    // Atualizar relógio
     function updateClock() {
         const now = new Date();
         const clockElement = document.getElementById('clock');
@@ -46,3 +43,5 @@ function initDesktop() {
     updateClock();
     setInterval(updateClock, 1000);
 }
+
+window.switchDesktop = switchDesktop;
